@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Member, SystemRole, AppSettings } from '../types';
-import { Users, ShieldCheck, Lock, LogIn, BookOpen, Eye, EyeOff, AlertOctagon, Clock, Phone } from 'lucide-react';
+import { Users, ShieldCheck, Lock, LogIn, BookOpen, Eye, EyeOff, AlertOctagon, Clock, Phone, Link as LinkIcon, Lightbulb } from 'lucide-react';
 import { verifyPassword } from '../services/securityService';
 
 interface LoginProps {
@@ -114,12 +114,34 @@ const Login: React.FC<LoginProps> = ({ members, settings, onLogin }) => {
   return (
     <div className="min-h-screen bg-purple-900 flex flex-col items-center justify-center p-4">
       
-      <div className="mb-8 text-center animate-fade-in">
-        <div className="bg-white p-4 rounded-2xl shadow-xl inline-block mb-4">
-          <BookOpen size={48} className="text-purple-900" />
+      <div className="mb-8 text-center animate-fade-in flex flex-col items-center">
+        {/* LOGOTIPO CUSTOMIZADO Z-ELO */}
+        <div className="relative w-24 h-24 mb-4">
+            {/* Fundo do Ícone */}
+            <div className="absolute inset-0 bg-white rounded-3xl shadow-2xl flex items-center justify-center overflow-hidden border-4 border-purple-200">
+               {/* Corrente (Elo) ao fundo */}
+               <LinkIcon 
+                  size={60} 
+                  className="text-purple-100 absolute -rotate-45 stroke-[3px]" 
+               />
+               {/* Letra Z Central */}
+               <span className="relative z-10 text-6xl font-black text-purple-800 tracking-tighter" style={{ fontFamily: 'sans-serif' }}>
+                 Z
+               </span>
+            </div>
+            
+            {/* Lâmpada (Ideia/Luz) flutuante */}
+            <div className="absolute -top-2 -right-2 bg-amber-400 p-2 rounded-full shadow-lg border-2 border-purple-900 z-20 animate-bounce">
+               <Lightbulb size={20} className="text-white fill-white" />
+            </div>
         </div>
+
         <h1 className="text-5xl font-bold text-white tracking-tight mb-1">Z-Elo</h1>
-        <p className="text-purple-200 text-lg">Cuidado e Ordem</p>
+        <p className="text-purple-200 text-lg flex items-center gap-2">
+           <span className="w-1 h-1 bg-purple-400 rounded-full"></span>
+           Cuidado e Ordem
+           <span className="w-1 h-1 bg-purple-400 rounded-full"></span>
+        </p>
       </div>
 
       <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-fade-in relative">

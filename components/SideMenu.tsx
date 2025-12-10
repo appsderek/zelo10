@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { LayoutDashboard, Users, CalendarCheck, FileText, Map, ClipboardList, DatabaseBackup, BookOpen, ShieldCheck, Sparkles, Mic2, MapPinned, LogOut, Lock, Presentation, Lightbulb, RefreshCw, Inbox } from 'lucide-react';
+import { LayoutDashboard, Users, CalendarCheck, FileText, Map, ClipboardList, DatabaseBackup, BookOpen, ShieldCheck, Sparkles, Mic2, MapPinned, LogOut, Lock, Presentation, Lightbulb, RefreshCw, Inbox, Link as LinkIcon } from 'lucide-react';
 import { SystemRole } from '../types';
 
 interface SideMenuProps {
@@ -87,8 +87,13 @@ const SideMenu: React.FC<SideMenuProps> = ({ activeTab, setActiveTab, isMobileOp
         ${isMobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
       `}>
         <div className="p-6 border-b border-purple-800 flex items-center gap-3">
-          <div className="bg-white p-2 rounded-lg shadow-md">
-            <BookOpen className="text-purple-900" size={26} />
+          {/* COMPACT LOGO */}
+          <div className="relative w-12 h-12 bg-white rounded-lg shadow-md flex items-center justify-center overflow-hidden shrink-0">
+               <LinkIcon className="absolute text-purple-200 -rotate-45" size={28} />
+               <span className="text-2xl font-black text-purple-900 z-10 relative">Z</span>
+               <div className="absolute top-1 right-1 bg-amber-400 p-0.5 rounded-full border border-white z-20">
+                  <Lightbulb size={8} className="text-white fill-white" />
+               </div>
           </div>
           <div>
             <h1 className="text-xl font-bold tracking-tight leading-none text-white">Z-Elo</h1>
