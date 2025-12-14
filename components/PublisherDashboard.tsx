@@ -1,6 +1,7 @@
+
 import React, { useState } from 'react';
 import { Member, WeekSchedule, DutyAssignment, ChairmanReaderAssignment, ServiceReport, PioneerStatus, Group } from '../types';
-import { User, Calendar, CheckCircle2, XCircle, Clock, BookOpenCheck, CalendarCheck, ShieldCheck, Send, AlertTriangle } from 'lucide-react';
+import { User, Calendar, CheckCircle2, XCircle, Clock, BookOpenCheck, CalendarCheck, ShieldCheck, Send, AlertTriangle, Download, Trash2, Eye } from 'lucide-react';
 
 interface PublisherDashboardProps {
   member: Member;
@@ -99,11 +100,33 @@ const PublisherDashboard: React.FC<PublisherDashboardProps> = ({ member, schedul
     }, 1000);
   };
 
+  // LGPD ACTIONS
+  const handleExportData = () => {
+      const myData = {
+          personalInfo: member,
+          myReports: reports.filter(r => r.memberId === member.id),
+          generatedAt: new Date().toISOString()
+      };
+
+      const blob = new Blob([JSON.stringify(myData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `Meus_Dados_Zelo_${member.fullName.replace(/\s/g, '_')}.json`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+  };
+
+  const handleRequestDeletion = () => {
+      alert("Para solicitar a exclusão dos seus dados, entre em contato diretamente com o Secretário ou Coordenador da sua congregação. Por motivos de segurança, a exclusão deve ser feita manualmente pelo administrador.");
+  };
+
   // Nome do Secretário para exibição fixa
   const overseerName = 'Cristiano Santos (Secretário)';
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-20">
       <div>
          <h2 className="text-3xl font-bold text-white mb-2">Meu Painel</h2>
          <p className="text-purple-200">Bem-vindo, {member.fullName}.</p>
@@ -275,6 +298,30 @@ const PublisherDashboard: React.FC<PublisherDashboardProps> = ({ member, schedul
                </div>
            )}
         </div>
+      </div>
+
+      {/* ÁREA DE PRIVACIDADE E LGPD */}
+      <div className="bg-slate-50 border border-slate-200 rounded-xl p-6 mt-8">
+          <h3 className="text-lg font-bold text-slate-700 mb-4 flex items-center gap-2">
+              <ShieldCheck className="text-slate-500" /> Privacidade e LGPD
+          </h3>
+          <p className="text-sm text-slate-500 mb-6">
+              Você tem controle sobre seus dados. Utilize as opções abaixo para gerenciar suas informações conforme a Lei Geral de Proteção de Dados.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-4">
+              <button 
+                  onClick={handleExportData}
+                  className="flex items-center justify-center gap-2 px-4 py-2 bg-white border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-100 transition-colors font-medium text-sm shadow-sm"
+              >
+                  <Download size={16} /> Baixar meus dados (JSON)
+              </button>
+              <button 
+                  onClick={handleRequestDeletion}
+                  className="flex items-center justify-center gap-2 px-4 py-2 bg-white border border-red-200 text-red-600 rounded-lg hover:bg-red-50 transition-colors font-medium text-sm shadow-sm"
+              >
+                  <Trash2 size={16} /> Solicitar exclusão da conta
+              </button>
+          </div>
       </div>
     </div>
   );

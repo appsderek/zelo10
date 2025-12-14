@@ -1,5 +1,6 @@
+
 import React, { useEffect, useState } from 'react';
-import { Member, AttendanceRecord, MemberStatus, Group, WeekSchedule, DutyAssignment, CleaningAssignment, ChairmanReaderAssignment, FieldServiceMeeting, InboxMessage } from '../types';
+import { Member, AttendanceRecord, MemberStatus, Group, WeekSchedule, DutyAssignment, CleaningAssignment, ChairmanReaderAssignment, FieldServiceMeeting, InboxMessage, SystemRole } from '../types';
 import { Users, UserCheck, UserMinus, Activity, Map, User, Bell, Send, Check, CheckCircle2, MessageSquare, Clock } from 'lucide-react';
 import { getPendingNotifications, NotificationItem, openWhatsAppNotification, createAssignmentMessage } from '../services/notificationService';
 
@@ -58,11 +59,21 @@ const Dashboard: React.FC<DashboardProps> = ({
 
   // Lógica de Filtro de Mensagens (Novas)
   const isTargetUser = (msg: InboxMessage) => {
-      // Se for admin total, vê tudo. Se for seletivo, vê só se for o alvo.
-      if (currentUser?.customRole === 'Seletivo') {
+      // 1. Admin Total vê tudo
+      if (currentUser?.customRole === SystemRole.TOTAL) return true;
+
+      // 2. Se for Seletivo...
+      if (currentUser?.customRole === SystemRole.SELECTIVE) {
+          // A. Se tiver a tag 'Coordenador', 'Secretário' ou 'Sup. Serviço', vê tudo (pois são administradores do campo)
+          const userRoles = currentUser.roles || [];
+          if (userRoles.includes('Coordenador') || userRoles.includes('Secretário') || userRoles.includes('Sup. Serviço')) {
+             return true;
+          }
+
+          // B. Caso contrário, só vê se for direcionado especificamente a ele
           return msg.targetOverseerName === currentUser.fullName || !msg.targetOverseerName;
       }
-      return true;
+      return false;
   };
 
   const myNewMessages = inboxMessages.filter(msg => !msg.read && isTargetUser(msg))

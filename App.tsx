@@ -18,8 +18,11 @@ import PublisherDashboard from './components/PublisherDashboard';
 import PublicTalks from './components/PublicTalks';
 import IdeaBank from './components/IdeaBank';
 import ReportInbox from './components/ReportInbox';
+import Territories from './components/Territories';
+import PublicWitnessing from './components/PublicWitnessing';
+import LGPDBanner from './components/LGPDBanner'; // Novo componente
 
-import { Member, AttendanceRecord, Group, ServiceReport, WeekSchedule, DutyAssignment, CleaningAssignment, ChairmanReaderAssignment, FieldServiceMeeting, PublicTalk, SystemRole, AppSettings, ModuleKey, PublicTalkOutline, InboxMessage } from './types';
+import { Member, AttendanceRecord, Group, ServiceReport, WeekSchedule, DutyAssignment, CleaningAssignment, ChairmanReaderAssignment, FieldServiceMeeting, PublicTalk, SystemRole, AppSettings, ModuleKey, PublicTalkOutline, InboxMessage, Territory, TerritoryHistory, CartLocation, CartShift } from './types';
 import { Menu, Loader2, CloudOff, Cloud, ShieldCheck } from 'lucide-react';
 import { initSupabase, loadFromCloud, saveToCloud, PROJECT_URL, PROJECT_KEY } from './services/supabaseService';
 
@@ -33,7 +36,7 @@ const App: React.FC = () => {
   // Auth State
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentRole, setCurrentRole] = useState<SystemRole | null>(null);
-  const [currentUser, setCurrentUser] = useState<Member | { fullName: string, customRole: SystemRole, permissions: Partial<Record<ModuleKey, boolean>> } | undefined>(undefined);
+  const [currentUser, setCurrentUser] = useState<Member | { fullName: string, customRole: SystemRole, permissions: Partial<Record<ModuleKey, boolean>>, roles?: string[] } | undefined>(undefined);
 
   // Data State
   const [settings, setSettings] = useState<AppSettings>({ adminPassword: '1234' });
@@ -50,6 +53,12 @@ const App: React.FC = () => {
   const [publicTalks, setPublicTalks] = useState<PublicTalk[]>([]);
   const [publicTalkOutlines, setPublicTalkOutlines] = useState<PublicTalkOutline[]>([]);
   
+  // Novos Estados para Módulos Extras
+  const [territories, setTerritories] = useState<Territory[]>([]);
+  const [territoryHistory, setTerritoryHistory] = useState<TerritoryHistory[]>([]);
+  const [cartLocations, setCartLocations] = useState<CartLocation[]>([]);
+  const [cartShifts, setCartShifts] = useState<CartShift[]>([]);
+
   // Estado para persistência de notificações
   const [sentNotificationIds, setSentNotificationIds] = useState<string[]>([]);
   // Estado para Mensagens Internas (Inbox do Dirigente)
@@ -115,11 +124,15 @@ const App: React.FC = () => {
       if (connected) {
         setCloudStatus('connected');
         try {
-            const [mRes, gRes, rRes, aRes, sRes, dRes, cRes, cnRes, crRes, fsRes, ptRes, ptoRes, setRes, notifRes, inboxRes] = await Promise.all([
+            const [
+                mRes, gRes, rRes, aRes, sRes, dRes, cRes, cnRes, crRes, fsRes, ptRes, ptoRes, setRes, notifRes, inboxRes,
+                terrRes, terrHistRes, cartLocRes, cartShiftRes
+            ] = await Promise.all([
               loadFromCloud('members'), loadFromCloud('groups'), loadFromCloud('reports'), loadFromCloud('attendance'),
               loadFromCloud('schedules'), loadFromCloud('duties'), loadFromCloud('cleaning'), loadFromCloud('cleaning_notes'),
               loadFromCloud('chairman_readers'), loadFromCloud('field_service'), loadFromCloud('public_talks'), loadFromCloud('public_talk_outlines'), 
-              loadFromCloud('settings'), loadFromCloud('sent_notifications'), loadFromCloud('inbox_messages')
+              loadFromCloud('settings'), loadFromCloud('sent_notifications'), loadFromCloud('inbox_messages'),
+              loadFromCloud('territories'), loadFromCloud('territory_history'), loadFromCloud('cart_locations'), loadFromCloud('cart_shifts')
             ]);
 
             if (mRes.data) setMembers(mRes.data);
@@ -147,6 +160,12 @@ const App: React.FC = () => {
             if (setRes.data) setSettings(setRes.data);
             if (notifRes.data) setSentNotificationIds(notifRes.data);
             if (inboxRes.data) setInboxMessages(inboxRes.data);
+            
+            // Novos Módulos
+            if (terrRes.data) setTerritories(terrRes.data);
+            if (terrHistRes.data) setTerritoryHistory(terrHistRes.data);
+            if (cartLocRes.data) setCartLocations(cartLocRes.data);
+            if (cartShiftRes.data) setCartShifts(cartShiftRes.data);
 
             loadedFromCloud = true;
         } catch (e) { 
@@ -186,6 +205,11 @@ const App: React.FC = () => {
         setSettings(load('jw_settings', { adminPassword: '1234' }));
         setSentNotificationIds(load('jw_sent_notifications', []));
         setInboxMessages(load('jw_inbox_messages', []));
+        
+        setTerritories(load('jw_territories', []));
+        setTerritoryHistory(load('jw_territory_history', []));
+        setCartLocations(load('jw_cart_locations', []));
+        setCartShifts(load('jw_cart_shifts', []));
       }
 
       setIsLoading(false);
@@ -203,7 +227,9 @@ const App: React.FC = () => {
         saveToCloud('chairman_readers', chairmanReaders), saveToCloud('field_service', fieldServiceSchedule),
         saveToCloud('public_talks', publicTalks), saveToCloud('public_talk_outlines', publicTalkOutlines),
         saveToCloud('settings', settings), saveToCloud('sent_notifications', sentNotificationIds),
-        saveToCloud('inbox_messages', inboxMessages)
+        saveToCloud('inbox_messages', inboxMessages),
+        saveToCloud('territories', territories), saveToCloud('territory_history', territoryHistory),
+        saveToCloud('cart_locations', cartLocations), saveToCloud('cart_shifts', cartShifts)
       ]).then(() => setLastSaved(new Date())).catch(e => console.error("Falha ao salvar na nuvem:", e));
     } else {
       localStorage.setItem('jw_members', JSON.stringify(members));
@@ -221,6 +247,10 @@ const App: React.FC = () => {
       localStorage.setItem('jw_settings', JSON.stringify(settings));
       localStorage.setItem('jw_sent_notifications', JSON.stringify(sentNotificationIds));
       localStorage.setItem('jw_inbox_messages', JSON.stringify(inboxMessages));
+      localStorage.setItem('jw_territories', JSON.stringify(territories));
+      localStorage.setItem('jw_territory_history', JSON.stringify(territoryHistory));
+      localStorage.setItem('jw_cart_locations', JSON.stringify(cartLocations));
+      localStorage.setItem('jw_cart_shifts', JSON.stringify(cartShifts));
       setLastSaved(new Date());
     }
   };
@@ -229,13 +259,13 @@ const App: React.FC = () => {
     if (isLoading) return; 
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
     debounceTimer.current = setTimeout(saveState, 1500); 
-  }, [members, groups, attendance, serviceReports, settings, schedules, duties, cleaningSchedule, cleaningNotes, chairmanReaders, fieldServiceSchedule, publicTalks, publicTalkOutlines, sentNotificationIds, inboxMessages, isLoading]);
+  }, [members, groups, attendance, serviceReports, settings, schedules, duties, cleaningSchedule, cleaningNotes, chairmanReaders, fieldServiceSchedule, publicTalks, publicTalkOutlines, sentNotificationIds, inboxMessages, territories, territoryHistory, cartLocations, cartShifts, isLoading]);
 
   // --- HANDLERS ---
   const handleLogin = (role: SystemRole, member?: Member) => {
     setIsAuthenticated(true);
     setCurrentRole(role);
-    setCurrentUser(member || { fullName: 'Administrador', customRole: SystemRole.TOTAL, permissions: {} });
+    setCurrentUser(member || { fullName: 'Administrador', customRole: SystemRole.TOTAL, permissions: {}, roles: ['Coordenador', 'Secretário', 'Sup. Serviço'] });
     setActiveTab('dashboard'); 
   };
   
@@ -254,6 +284,15 @@ const App: React.FC = () => {
     }
     return false;
   };
+
+  // Verifica permissão específica para Territórios e Carrinhos (Admin ou Coordenador/Sup. Serviço)
+  const canManageService = (): boolean => {
+      if (currentRole === SystemRole.TOTAL) return true;
+      if (currentUser && 'roles' in currentUser && currentUser.roles) {
+          return currentUser.roles.includes('Coordenador') || currentUser.roles.includes('Sup. Serviço');
+      }
+      return false;
+  };
   
   // Função para salvar relatório pessoal E GERAR NOTIFICAÇÃO PRO SECRETÁRIO
   const handleSavePersonalReport = (report: ServiceReport) => {
@@ -263,20 +302,20 @@ const App: React.FC = () => {
          return [...filtered, report];
      });
 
-     // 2. Lógica de Notificação para o Secretário (Cristiano Santos)
+     // 2. Lógica de Notificação para o Secretário
      if (currentUser && 'id' in currentUser) {
         const member = currentUser as Member;
         
-        // Busca prioritária por nome "Cristiano Santos" (insensível a case)
-        let targetOverseer = members.find(m => m.fullName.trim().toLowerCase() === 'cristiano santos');
+        // A. Busca primária: Qualquer membro com a tag "Secretário"
+        let targetOverseer = members.find(m => m.roles?.includes('Secretário'));
         
-        // Se não encontrar, busca alguém com a tag "Secretário"
+        // B. Busca secundária (Legado): Nome específico "Cristiano Santos"
         if (!targetOverseer) {
-            targetOverseer = members.find(m => m.roles?.includes('Secretário'));
+            targetOverseer = members.find(m => m.fullName.trim().toLowerCase() === 'cristiano santos');
         }
         
-        // Fallback final se não achar ninguém
-        const targetName = targetOverseer ? targetOverseer.fullName : 'Cristiano Santos';
+        // C. Fallback: Se não achar ninguém, define para "Secretaria"
+        const targetName = targetOverseer ? targetOverseer.fullName : 'Secretaria';
         
         const newMessage: InboxMessage = {
             id: crypto.randomUUID(),
@@ -300,7 +339,7 @@ const App: React.FC = () => {
         // GERA NOTIFICAÇÃO DO NAVEGADOR SE PERMITIDO
         if ('Notification' in window && Notification.permission === 'granted') {
              try {
-                new Notification('Secretariado JW - Novo Relatório', {
+                new Notification('Z-Elo - Novo Relatório', {
                     body: `${member.fullName} enviou o relatório de campo.`,
                     icon: 'https://cdn-icons-png.flaticon.com/512/2666/2666505.png'
                 });
@@ -330,23 +369,16 @@ const App: React.FC = () => {
     if (window.confirm("ATENÇÃO: Isso apagará todas as mensagens e histórico de relatórios recebidos na Caixa de Entrada. Deseja continuar?")) {
       setIsLoading(true); // Bloqueia a UI
       try {
-          // 1. Limpa Estado
           setInboxMessages([]);
-          
-          // 2. Limpa Local Storage
           localStorage.removeItem('jw_inbox_messages');
           localStorage.setItem('jw_inbox_messages', '[]');
-
-          // 3. Limpa Nuvem
           if (cloudStatus === 'connected') {
               await saveToCloud('inbox_messages', []);
           }
-
           alert("Caixa de entrada limpa com sucesso!");
           window.location.reload(); 
       } catch (error) {
           console.error("Erro ao limpar dados:", error);
-          // Mesmo com erro na nuvem, força limpeza local
           localStorage.setItem('jw_inbox_messages', '[]');
           window.location.reload();
       }
@@ -358,29 +390,22 @@ const App: React.FC = () => {
      if (window.confirm("PERIGO: Isso apagará TODOS os relatórios de campo de TODOS os publicadores e limpará a Caixa de Entrada. Esta ação é irreversível. Deseja continuar?")) {
         setIsLoading(true); // Bloqueia a UI
         try {
-            // 1. Limpa Estado
             setServiceReports([]);
             setInboxMessages([]); 
-
-            // 2. Limpa Local Storage
             localStorage.removeItem('jw_reports');
             localStorage.removeItem('jw_inbox_messages');
             localStorage.setItem('jw_reports', '[]');
             localStorage.setItem('jw_inbox_messages', '[]');
-
-            // 3. Limpa Nuvem
             if (cloudStatus === 'connected') {
                 await Promise.all([
                     saveToCloud('reports', []),
                     saveToCloud('inbox_messages', [])
                 ]);
             }
-            
             alert("Todos os relatórios e mensagens foram apagados com sucesso.");
             window.location.reload();
         } catch (error) {
             console.error("Erro ao limpar dados:", error);
-            // Mesmo com erro, tenta limpar local
             localStorage.setItem('jw_reports', '[]');
             localStorage.setItem('jw_inbox_messages', '[]');
             window.location.reload();
@@ -393,7 +418,6 @@ const App: React.FC = () => {
     if (confirm("ATENÇÃO: RESET MESTRE (FÁBRICA)\n\nIsso apagará TODO o banco de dados na nuvem, limpará o armazenamento local e reiniciará o sistema como novo.\n\nTem certeza absoluta?")) {
       setIsLoading(true);
       try {
-        // 1. Limpa Nuvem (envia listas vazias para tudo)
         if (cloudStatus === 'connected') {
            await Promise.all([
              saveToCloud('members', []), saveToCloud('groups', []), saveToCloud('reports', []),
@@ -402,26 +426,22 @@ const App: React.FC = () => {
              saveToCloud('chairman_readers', []), saveToCloud('field_service', []),
              saveToCloud('public_talks', []), saveToCloud('public_talk_outlines', []),
              saveToCloud('settings', { adminPassword: '1234' }), 
-             saveToCloud('sent_notifications', []), saveToCloud('inbox_messages', [])
+             saveToCloud('sent_notifications', []), saveToCloud('inbox_messages', []),
+             saveToCloud('territories', []), saveToCloud('territory_history', []),
+             saveToCloud('cart_locations', []), saveToCloud('cart_shifts', [])
            ]);
         }
-        
-        // 2. Limpa Local
         localStorage.clear();
-        
-        // 3. Limpa Service Workers (Cache PWA)
         if ('serviceWorker' in navigator) {
           const registrations = await navigator.serviceWorker.getRegistrations();
           for (const registration of registrations) {
              await registration.unregister();
           }
         }
-
         alert("Sistema resetado com sucesso. Reiniciando...");
         window.location.href = '/';
       } catch (e) {
         console.error(e);
-        // Fallback: garante que pelo menos o local seja limpo
         localStorage.clear();
         window.location.href = '/';
       }
@@ -452,6 +472,8 @@ const App: React.FC = () => {
                 return <ChairmanReaderRoster assignments={chairmanReaders} onSaveAssignments={()=>{}} isReadOnly={true} members={members} />;
             case 'field_service':
                 return <FieldServiceRoster meetings={fieldServiceSchedule} onSaveMeetings={()=>{}} isReadOnly={true} members={members} />;
+            case 'public_witnessing': // Publicador pode ver e se inscrever
+                return <PublicWitnessing locations={cartLocations} shifts={cartShifts} members={members} onSaveLocations={()=>{}} onSaveShifts={setCartShifts} isReadOnly={true} currentUser={currentUser as Member} />;
             case 'duties':
                 return <DutyRoster assignments={duties} members={members} onSaveAssignments={()=>{}} isReadOnly={true} />;
             case 'cleaning':
@@ -499,32 +521,25 @@ const App: React.FC = () => {
           />
         );
       case 'report_inbox':
-         // Acesso restrito via canEdit para seletivos
-         if (currentRole === SystemRole.SELECTIVE && !canEdit('report_inbox')) {
-             return <div className="p-8 text-center text-gray-500">Acesso negado. Consulte o administrador.</div>;
-         }
+         if (currentRole === SystemRole.SELECTIVE && !canEdit('report_inbox')) return <div className="p-8 text-center text-gray-500">Acesso negado. Consulte o administrador.</div>;
          return <ReportInbox messages={inboxMessages} onMarkRead={handleMarkMessageRead} onDeleteMessage={handleDeleteInboxMessage} currentUser={currentUser as Member} isReadOnly={!canEdit('report_inbox')} members={members} groups={groups} />;
       case 'members':
         return <Members members={members} groups={groups} onAddMember={m => setMembers(p => [...p, m])} onUpdateMember={m => setMembers(p => p.map(i => i.id === m.id ? m : i))} onDeleteMember={id => setMembers(p => p.filter(i => i.id !== id))} isReadOnly={!canEdit('members')} />;
       case 'groups':
         return <Groups groups={groups} members={members} reports={serviceReports} inboxMessages={inboxMessages} onAddGroup={g => setGroups(p => [...p, g])} onUpdateGroup={g => setGroups(p => p.map(i => i.id === g.id ? g : i))} onDeleteGroup={id => setGroups(p => p.filter(i => i.id !== id))} isReadOnly={!canEdit('groups')} />;
+      case 'territories':
+        if (!canManageService()) return <div className="p-8 text-center text-gray-500">Acesso restrito a Coordenadores e Superintendentes de Serviço.</div>;
+        return <Territories territories={territories} members={members} history={territoryHistory} onSaveTerritories={setTerritories} onSaveHistory={setTerritoryHistory} isReadOnly={false} />;
+      case 'public_witnessing':
+        // Acesso de gestão para Serviço, acesso de inscrição para outros
+        return <PublicWitnessing locations={cartLocations} shifts={cartShifts} members={members} onSaveLocations={setCartLocations} onSaveShifts={setCartShifts} isReadOnly={!canManageService()} currentUser={currentUser as Member} />;
       case 'attendance':
         return <Attendance records={attendance} onAddRecord={r => setAttendance(p => [...p, r])} onDeleteRecord={id => setAttendance(p => p.filter(i => i.id !== id))} isReadOnly={!canEdit('attendance')} />;
       case 'reports':
         return <ServiceReports members={members} groups={groups} reports={serviceReports} onSaveReports={newR => setServiceReports(p => [...p.filter(pr => !newR.some(nr => nr.id === pr.id)), ...newR])} isReadOnly={!canEdit('reports')} />;
       case 'data':
-        // Acesso restrito apenas para TOTAL
         if (currentRole !== SystemRole.TOTAL) return <div className="p-8 text-center text-gray-500">Acesso restrito ao Administrador Geral.</div>;
-        return <DataManagement 
-            members={members} 
-            groups={groups} 
-            reports={serviceReports} 
-            attendance={attendance} 
-            onImportData={() => {}} 
-            onResetInbox={handleResetInbox}
-            onDeleteAllReports={handleDeleteAllReports}
-            onMasterReset={handleMasterReset}
-        />;
+        return <DataManagement members={members} groups={groups} reports={serviceReports} attendance={attendance} onImportData={() => {}} onResetInbox={handleResetInbox} onDeleteAllReports={handleDeleteAllReports} onMasterReset={handleMasterReset} />;
       case 'schedule':
         return <MeetingSchedule members={members} schedules={schedules} onSaveSchedule={s => setSchedules(p => { const exists = p.some(ps => ps.id === s.id); return exists ? p.map(ps => ps.id === s.id ? s : ps) : [...p, s]; })} onDeleteSchedule={id => setSchedules(p => p.filter(s => s.id !== id))} isReadOnly={!canEdit('schedule')} />;
       case 'duties':
@@ -540,7 +555,6 @@ const App: React.FC = () => {
       case 'idea_bank':
         return <IdeaBank />;
       case 'access':
-        // Acesso restrito apenas para TOTAL
         if (currentRole !== SystemRole.TOTAL) return <div className="p-8 text-center text-gray-500">Acesso restrito ao Administrador Geral.</div>;
         return <AccessControl members={members} settings={settings} onUpdateMember={m => setMembers(p => p.map(i => i.id === m.id ? m : i))} onUpdateSettings={setSettings} />;
       default:
@@ -557,6 +571,7 @@ const App: React.FC = () => {
 
   return (
     <div className="flex h-screen overflow-hidden">
+      <LGPDBanner />
       <SideMenu 
         activeTab={activeTab} 
         setActiveTab={setActiveTab} 
@@ -564,13 +579,17 @@ const App: React.FC = () => {
         setIsMobileOpen={setIsMobileOpen}
         onLogout={handleLogout}
         userRole={currentRole}
+        currentUserRoles={(currentUser && 'roles' in currentUser) ? currentUser.roles : []}
       />
       <div className="flex-1 flex flex-col overflow-hidden">
         <header className="lg:hidden p-3 bg-white border-b border-gray-200 flex items-center justify-between sticky top-0 z-10 print-hidden">
             <button onClick={() => setIsMobileOpen(true)}>
               <Menu size={24} />
             </button>
-            <span className="font-bold text-lg text-purple-900">Secretariado JW</span>
+            <div className="flex flex-col items-center">
+               <span className="font-bold text-lg text-purple-900 leading-none">Z-Elo</span>
+               <span className="text-[10px] text-purple-600 font-medium leading-none">Gestão de Congregação</span>
+            </div>
             <div className={`flex items-center gap-1.5 text-xs ${cloudStatus === 'connected' ? 'text-green-600' : 'text-red-500'}`}>
                 {cloudStatus === 'connected' ? <Cloud size={16} /> : <CloudOff size={16} />}
                 <span className="hidden sm:inline">{cloudStatus === 'connected' ? 'Nuvem' : 'Offline'}</span>

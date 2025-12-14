@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Member, SystemRole, AppSettings } from '../types';
 import { Users, ShieldCheck, Lock, LogIn, BookOpen, Eye, EyeOff, AlertOctagon, Clock, Phone, Link as LinkIcon, Lightbulb } from 'lucide-react';
 import { verifyPassword } from '../services/securityService';
+import PrivacyPolicy from './PrivacyPolicy';
 
 interface LoginProps {
   members: Member[];
@@ -23,6 +24,10 @@ const Login: React.FC<LoginProps> = ({ members, settings, onLogin }) => {
   const [failedAttempts, setFailedAttempts] = useState(0);
   const [isLocked, setIsLocked] = useState(false);
   const [lockTimer, setLockTimer] = useState(0);
+
+  // LGPD State
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [showPolicy, setShowPolicy] = useState(false);
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
@@ -53,6 +58,11 @@ const Login: React.FC<LoginProps> = ({ members, settings, onLogin }) => {
     e.preventDefault();
     if (isLocked) return;
 
+    if (!acceptedTerms) {
+        setError('Você deve concordar com a Política de Privacidade para continuar.');
+        return;
+    }
+
     // Verifica a senha usando o serviço de segurança
     const adminPass = settings.adminPassword || '1234';
     
@@ -66,6 +76,11 @@ const Login: React.FC<LoginProps> = ({ members, settings, onLogin }) => {
   const handlePublisherLogin = (e: React.FormEvent) => {
     e.preventDefault();
     if (isLocked) return;
+
+    if (!acceptedTerms) {
+        setError('Você deve concordar com a Política de Privacidade para continuar.');
+        return;
+    }
 
     if (!identifier.trim()) {
         setError('Por favor, digite seu nome ou telefone.');
@@ -203,6 +218,20 @@ const Login: React.FC<LoginProps> = ({ members, settings, onLogin }) => {
                 </div>
               </div>
 
+              {/* LGPD CHECKBOX */}
+              <div className="flex items-center gap-2 bg-purple-50 p-3 rounded-lg border border-purple-100">
+                  <input 
+                    type="checkbox" 
+                    id="lgpd-admin"
+                    className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
+                    checked={acceptedTerms}
+                    onChange={(e) => setAcceptedTerms(e.target.checked)}
+                  />
+                  <label htmlFor="lgpd-admin" className="text-xs text-slate-700">
+                      Declaro que li e concordo com a <button type="button" onClick={() => setShowPolicy(true)} className="text-purple-700 font-bold underline">Política de Privacidade</button>.
+                  </label>
+              </div>
+
               {error && <p className="text-red-500 text-sm font-medium text-center bg-red-50 p-2 rounded-lg animate-fade-in">{error}</p>}
 
               <button type="submit" className="w-full bg-purple-700 hover:bg-purple-800 text-white font-bold py-3 rounded-xl shadow-lg shadow-purple-200 transition-all flex items-center justify-center gap-2">
@@ -251,6 +280,20 @@ const Login: React.FC<LoginProps> = ({ members, settings, onLogin }) => {
                 <p className="text-[10px] text-gray-400 pl-1">Se você nunca cadastrou uma senha, deixe em branco.</p>
               </div>
 
+              {/* LGPD CHECKBOX */}
+              <div className="flex items-center gap-2 bg-purple-50 p-3 rounded-lg border border-purple-100">
+                  <input 
+                    type="checkbox" 
+                    id="lgpd-publisher"
+                    className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
+                    checked={acceptedTerms}
+                    onChange={(e) => setAcceptedTerms(e.target.checked)}
+                  />
+                  <label htmlFor="lgpd-publisher" className="text-xs text-slate-700">
+                      Declaro que li e concordo com a <button type="button" onClick={() => setShowPolicy(true)} className="text-purple-700 font-bold underline">Política de Privacidade</button>.
+                  </label>
+              </div>
+
               {error && <p className="text-red-500 text-sm font-medium text-center bg-red-50 p-2 rounded-lg animate-fade-in">{error}</p>}
 
               <button type="submit" className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 rounded-xl shadow-lg shadow-purple-200 transition-all flex items-center justify-center gap-2">
@@ -264,6 +307,8 @@ const Login: React.FC<LoginProps> = ({ members, settings, onLogin }) => {
            <p className="text-xs text-gray-400">© 2024 Z-Elo v1.0 • Proteção Ativa</p>
         </div>
       </div>
+
+      {showPolicy && <PrivacyPolicy onClose={() => setShowPolicy(false)} />}
     </div>
   );
 };

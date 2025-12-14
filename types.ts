@@ -1,5 +1,4 @@
 
-
 // --- MÓDULOS DO SISTEMA (para controle de acesso) ---
 export type ModuleKey = 
   | 'members' 
@@ -14,7 +13,9 @@ export type ModuleKey =
   | 'access'
   | 'public_talks'
   | 'idea_bank'
-  | 'report_inbox';
+  | 'report_inbox'
+  | 'territories'
+  | 'public_witnessing';
 
 export const ALL_MODULES: Record<ModuleKey, string> = {
   members: 'Publicadores',
@@ -29,7 +30,9 @@ export const ALL_MODULES: Record<ModuleKey, string> = {
   access: 'Controle de Acesso',
   public_talks: 'Discursos Públicos',
   idea_bank: 'Banco de Ideias (IA)',
-  report_inbox: 'Caixa de Entrada (Relatórios)'
+  report_inbox: 'Caixa de Entrada (Relatórios)',
+  territories: 'Territórios & Mapas',
+  public_witnessing: 'Testemunho Público (Carrinhos)'
 };
 
 // --- CONTROLE DE ACESSO ---
@@ -241,4 +244,52 @@ export interface PublicTalkOutline {
   theme: string;
   hasImage: boolean;
   hasVideo: boolean;
+}
+
+// --- TERRITÓRIOS ---
+export interface Territory {
+  id: string;
+  number: string;
+  name: string;
+  imageUrl?: string; // Link do Google Maps ou Imagem
+  status: 'Disponível' | 'Designado';
+  currentAssigneeId?: string;
+  currentAssigneeName?: string;
+  assignedDate?: string;
+  lastWorkedDate?: string;
+  notes?: string;
+}
+
+export interface TerritoryHistory {
+  id: string;
+  territoryId: string;
+  assigneeName: string;
+  assignedDate: string;
+  returnedDate: string;
+}
+
+// --- TESTEMUNHO PÚBLICO (CARRINHOS) ---
+export interface CartLocation {
+  id: string;
+  name: string;
+  address: string;
+  description?: string;
+}
+
+// Novo tipo para mapear Slots específicos
+export interface CartAssignment {
+  slotType: 'carrinho' | 'display';
+  slotNumber: number; // 1-4 para carrinho, 1-3 para display
+  publisherId: string;
+  publisherName: string;
+}
+
+export interface CartShift {
+  id: string;
+  locationId: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  // assignments substitui assignedPublisherIds para mapeamento preciso
+  assignments: CartAssignment[];
 }

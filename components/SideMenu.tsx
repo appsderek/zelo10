@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { LayoutDashboard, Users, CalendarCheck, FileText, Map, ClipboardList, DatabaseBackup, BookOpen, ShieldCheck, Sparkles, Mic2, MapPinned, LogOut, Lock, Presentation, Lightbulb, RefreshCw, Inbox, Link as LinkIcon } from 'lucide-react';
+import { LayoutDashboard, Users, CalendarCheck, FileText, Map, ClipboardList, DatabaseBackup, BookOpen, ShieldCheck, Sparkles, Mic2, MapPinned, LogOut, Lock, Presentation, Lightbulb, RefreshCw, Inbox, Link as LinkIcon, Globe, Store } from 'lucide-react';
 import { SystemRole } from '../types';
 
 interface SideMenuProps {
@@ -10,12 +10,17 @@ interface SideMenuProps {
   setIsMobileOpen: (isOpen: boolean) => void;
   onLogout: () => void;
   userRole: SystemRole | null;
+  currentUserRoles?: string[]; // Propriedade nova para checar roles específicas (tags)
 }
 
-const SideMenu: React.FC<SideMenuProps> = ({ activeTab, setActiveTab, isMobileOpen, setIsMobileOpen, onLogout, userRole }) => {
+const SideMenu: React.FC<SideMenuProps> = ({ activeTab, setActiveTab, isMobileOpen, setIsMobileOpen, onLogout, userRole, currentUserRoles = [] }) => {
   
   // VERSÃO DO SISTEMA
-  const APP_VERSION = "Z-Elo v1.0";
+  const APP_VERSION = "Z-Elo v1.2";
+
+  const hasServicePrivilege = userRole === SystemRole.TOTAL || 
+                              currentUserRoles.includes('Coordenador') || 
+                              currentUserRoles.includes('Sup. Serviço');
 
   // Itens disponíveis para ADMIN (Acesso Total)
   const allAdminItems = [
@@ -23,6 +28,8 @@ const SideMenu: React.FC<SideMenuProps> = ({ activeTab, setActiveTab, isMobileOp
     { id: 'report_inbox', label: 'Caixa de Entrada', icon: <Inbox size={20} /> },
     { id: 'members', label: 'Publicadores', icon: <Users size={20} /> },
     { id: 'groups', label: 'Grupos de Campo', icon: <Map size={20} /> },
+    { id: 'territories', label: 'Territórios', icon: <Globe size={20} />, restricted: true }, // Novo
+    { id: 'public_witnessing', label: 'Testemunho Público', icon: <Store size={20} />, restricted: true }, // Novo
     { id: 'schedule', label: 'Vida e Ministério', icon: <BookOpen size={20} /> },
     { id: 'public_talks', label: 'Discursos Públicos', icon: <Presentation size={20} /> },
     { id: 'chairman_readers', label: 'Presidentes e Leitores', icon: <Mic2 size={20} /> },
@@ -43,26 +50,33 @@ const SideMenu: React.FC<SideMenuProps> = ({ activeTab, setActiveTab, isMobileOp
     { id: 'public_talks', label: 'Discursos Públicos', icon: <Presentation size={20} /> },
     { id: 'chairman_readers', label: 'Presidentes e Leitores', icon: <Mic2 size={20} /> },
     { id: 'field_service', label: 'Saídas de Campo', icon: <MapPinned size={20} /> },
+    // Publicadores comuns podem ver a agenda de carrinhos para se inscrever
+    { id: 'public_witnessing', label: 'Carrinhos (Inscrição)', icon: <Store size={20} /> }, 
     { id: 'duties', label: 'Designações Apoio', icon: <ShieldCheck size={20} /> },
     { id: 'cleaning', label: 'Limpeza do Salão', icon: <Sparkles size={20} /> },
   ];
 
-  // Lógica de Menu:
-  // TOTAL: Vê tudo.
-  // SELETIVO: Vê tudo, EXCETO 'access' e 'data' (funções de sistema).
-  // RESTRITO: Vê apenas os itens de publicador.
-  
   let menuItems = publisherItems;
 
   if (userRole === SystemRole.TOTAL) {
     menuItems = allAdminItems;
   } else if (userRole === SystemRole.SELECTIVE) {
-    // Filtra itens técnicos para o usuário seletivo
-    menuItems = allAdminItems.filter(item => item.id !== 'access' && item.id !== 'data');
-    // Renomeia 'Painel Geral' para 'Meu Painel' para ser consistente com a view
-    menuItems = menuItems.map(item => 
+    // 1. Base: Remove itens técnicos
+    let selectiveItems = allAdminItems.filter(item => item.id !== 'access' && item.id !== 'data');
+    
+    // 2. Filtro de Módulos Especiais (Territórios e Carrinhos)
+    // Só mostra se tiver permissão de Coordenador ou Sup. Serviço
+    if (!hasServicePrivilege) {
+        selectiveItems = selectiveItems.filter(item => item.id !== 'territories');
+        // Mantém 'public_witnessing' mas talvez em modo leitura (tratado no componente)
+    }
+
+    // Renomeia Dashboard
+    selectiveItems = selectiveItems.map(item => 
         item.id === 'dashboard' ? { ...item, label: 'Meu Painel' } : item
     );
+    
+    menuItems = selectiveItems;
   }
 
   const handleRefresh = (e: React.MouseEvent) => {

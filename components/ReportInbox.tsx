@@ -1,5 +1,6 @@
+
 import React, { useState } from 'react';
-import { InboxMessage, Member, Group } from '../types';
+import { InboxMessage, Member, Group, SystemRole } from '../types';
 import { Mail, CheckCircle2, Trash2, Clock, Check, AlertCircle, AlertTriangle, Search, Filter, Printer } from 'lucide-react';
 import { handlePrint } from '../services/notificationService';
 
@@ -23,11 +24,21 @@ const ReportInbox: React.FC<ReportInboxProps> = ({ messages, onMarkRead, onDelet
   const [messageIdToDelete, setMessageIdToDelete] = useState<string | null>(null);
 
   const isTargetUser = (msg: InboxMessage) => {
-      // Se for admin total, vê tudo. Se for seletivo, vê só se for o alvo.
-      if (currentUser?.customRole === 'Seletivo') {
+      // 1. Admin Total vê tudo
+      if (currentUser?.customRole === SystemRole.TOTAL) return true;
+
+      // 2. Se for Seletivo...
+      if (currentUser?.customRole === SystemRole.SELECTIVE) {
+          // A. Se tiver a tag 'Coordenador', 'Secretário' ou 'Sup. Serviço', vê tudo (pois são administradores do campo)
+          const userRoles = currentUser.roles || [];
+          if (userRoles.includes('Coordenador') || userRoles.includes('Secretário') || userRoles.includes('Sup. Serviço')) {
+             return true;
+          }
+
+          // B. Caso contrário, só vê se for direcionado especificamente a ele
           return msg.targetOverseerName === currentUser.fullName || !msg.targetOverseerName;
       }
-      return true;
+      return false;
   };
 
   const filteredMessages = messages
