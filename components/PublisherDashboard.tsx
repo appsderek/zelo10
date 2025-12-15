@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Member, WeekSchedule, DutyAssignment, ChairmanReaderAssignment, ServiceReport, PioneerStatus, Group } from '../types';
-import { User, Calendar, CheckCircle2, XCircle, Clock, BookOpenCheck, CalendarCheck, ShieldCheck, Send, AlertTriangle, Download, Trash2, Eye } from 'lucide-react';
+import { User, Calendar, CheckCircle2, XCircle, Clock, BookOpenCheck, CalendarCheck, ShieldCheck, Send, AlertTriangle, Download, Trash2, Eye, CalendarPlus } from 'lucide-react';
 
 interface PublisherDashboardProps {
   member: Member;
@@ -34,27 +34,28 @@ const PublisherDashboard: React.FC<PublisherDashboardProps> = ({ member, schedul
   // Filtrar Designações Futuras
   const todayStr = today.toISOString().slice(0, 10);
   
-  const myAssignments: { date: string, type: string, description: string }[] = [];
+  const myAssignments: { date: string, type: string, description: string, startTime?: string }[] = [];
 
   // 1. Vida e Ministério
   schedules.forEach(s => {
       if (s.date >= todayStr) {
-          if (s.chairman === member.fullName) myAssignments.push({ date: s.date, type: 'Vida e Ministério', description: 'Presidente da Reunião' });
-          if (s.auxClassCounselor === member.fullName) myAssignments.push({ date: s.date, type: 'Vida e Ministério', description: 'Conselheiro Sala B' });
-          if (s.openingPrayer === member.fullName) myAssignments.push({ date: s.date, type: 'Vida e Ministério', description: 'Oração Inicial' });
-          if (s.closingPrayer === member.fullName) myAssignments.push({ date: s.date, type: 'Vida e Ministério', description: 'Oração Final' });
-          if (s.congregationStudy.conductor === member.fullName) myAssignments.push({ date: s.date, type: 'Vida e Ministério', description: 'Dirigente Estudo Bíblico' });
-          if (s.congregationStudy.reader === member.fullName) myAssignments.push({ date: s.date, type: 'Vida e Ministério', description: 'Leitor Estudo Bíblico' });
+          const startTime = s.openingSongTime || '19:30';
+          if (s.chairman === member.fullName) myAssignments.push({ date: s.date, type: 'Vida e Ministério', description: 'Presidente da Reunião', startTime });
+          if (s.auxClassCounselor === member.fullName) myAssignments.push({ date: s.date, type: 'Vida e Ministério', description: 'Conselheiro Sala B', startTime });
+          if (s.openingPrayer === member.fullName) myAssignments.push({ date: s.date, type: 'Vida e Ministério', description: 'Oração Inicial', startTime });
+          if (s.closingPrayer === member.fullName) myAssignments.push({ date: s.date, type: 'Vida e Ministério', description: 'Oração Final', startTime: s.closingSongTime });
+          if (s.congregationStudy.conductor === member.fullName) myAssignments.push({ date: s.date, type: 'Vida e Ministério', description: 'Dirigente Estudo Bíblico', startTime: s.congregationStudyTime });
+          if (s.congregationStudy.reader === member.fullName) myAssignments.push({ date: s.date, type: 'Vida e Ministério', description: 'Leitor Estudo Bíblico', startTime: s.congregationStudyTime });
 
           s.treasuresParts.forEach(p => {
-              if (p.assignedTo === member.fullName || p.assignedToB === member.fullName) myAssignments.push({ date: s.date, type: 'Vida e Ministério', description: p.theme });
+              if (p.assignedTo === member.fullName || p.assignedToB === member.fullName) myAssignments.push({ date: s.date, type: 'Vida e Ministério', description: p.theme, startTime: p.time });
           });
           s.ministryParts.forEach(p => {
-              if (p.assignedTo === member.fullName || p.assignedToB === member.fullName) myAssignments.push({ date: s.date, type: 'Vida e Ministério', description: `Estudante: ${p.theme}` });
-              if (p.assistant === member.fullName || p.assistantB === member.fullName) myAssignments.push({ date: s.date, type: 'Vida e Ministério', description: `Ajudante: ${p.theme}` });
+              if (p.assignedTo === member.fullName || p.assignedToB === member.fullName) myAssignments.push({ date: s.date, type: 'Vida e Ministério', description: `Estudante: ${p.theme}`, startTime: p.time });
+              if (p.assistant === member.fullName || p.assistantB === member.fullName) myAssignments.push({ date: s.date, type: 'Vida e Ministério', description: `Ajudante: ${p.theme}`, startTime: p.time });
           });
           s.livingParts.forEach(p => {
-              if (p.assignedTo === member.fullName) myAssignments.push({ date: s.date, type: 'Vida e Ministério', description: p.theme });
+              if (p.assignedTo === member.fullName) myAssignments.push({ date: s.date, type: 'Vida e Ministério', description: p.theme, startTime: p.time });
           });
       }
   });
@@ -62,17 +63,17 @@ const PublisherDashboard: React.FC<PublisherDashboardProps> = ({ member, schedul
   // 2. Presidentes e Leitores
   chairmanReaders.forEach(c => {
       if (c.date >= todayStr) {
-          if (c.chairman === member.fullName) myAssignments.push({ date: c.date, type: 'Fim de Semana', description: 'Presidente da Reunião' });
-          if (c.reader === member.fullName) myAssignments.push({ date: c.date, type: 'Fim de Semana', description: 'Leitor de A Sentinela' });
+          if (c.chairman === member.fullName) myAssignments.push({ date: c.date, type: 'Fim de Semana', description: 'Presidente da Reunião', startTime: '18:00' });
+          if (c.reader === member.fullName) myAssignments.push({ date: c.date, type: 'Fim de Semana', description: 'Leitor de A Sentinela', startTime: '18:30' });
       }
   });
 
   // 3. Designações de Apoio (Busca textual simples)
   duties.forEach(d => {
       if (d.date >= todayStr) {
-          if (d.attendants.includes(member.fullName)) myAssignments.push({ date: d.date, type: 'Apoio', description: 'Indicador' });
-          if (d.microphones.includes(member.fullName)) myAssignments.push({ date: d.date, type: 'Apoio', description: 'Microfone Volante' });
-          if (d.soundVideo.includes(member.fullName)) myAssignments.push({ date: d.date, type: 'Apoio', description: 'Áudio e Vídeo' });
+          if (d.attendants.includes(member.fullName)) myAssignments.push({ date: d.date, type: 'Apoio', description: 'Indicador', startTime: '19:00' });
+          if (d.microphones.includes(member.fullName)) myAssignments.push({ date: d.date, type: 'Apoio', description: 'Microfone Volante', startTime: '19:00' });
+          if (d.soundVideo.includes(member.fullName)) myAssignments.push({ date: d.date, type: 'Apoio', description: 'Áudio e Vídeo', startTime: '19:00' });
       }
   });
 
@@ -120,6 +121,44 @@ const PublisherDashboard: React.FC<PublisherDashboardProps> = ({ member, schedul
 
   const handleRequestDeletion = () => {
       alert("Para solicitar a exclusão dos seus dados, entre em contato diretamente com o Secretário ou Coordenador da sua congregação. Por motivos de segurança, a exclusão deve ser feita manualmente pelo administrador.");
+  };
+
+  // CALENDAR INTEGRATION (INOVAÇÃO 4)
+  const handleAddToCalendar = (assign: { date: string, type: string, description: string, startTime?: string }) => {
+      // 1. Formata Data e Hora para o padrão ICS (YYYYMMDDTHHMMSS)
+      const dateStr = assign.date.replace(/-/g, '');
+      const timeStr = (assign.startTime || '1930').replace(':', '') + '00';
+      const startDateTime = `${dateStr}T${timeStr}`;
+      
+      // Assume duração de 1 hora se não especificado
+      // Calculando endDateTime (simplificado, adiciona 1 hora ao display)
+      // Para o ICS simples, vamos apenas usar o Start e deixar o usuário ajustar o fim no app nativo se quiser, ou por padrão 1h.
+      
+      const title = `Designação: ${assign.description}`;
+      const details = `Você tem uma designação no Salão do Reino.\nTipo: ${assign.type}\nParte: ${assign.description}`;
+      const location = "Salão do Reino";
+
+      const icsContent = `BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Z-Elo//Gestão Teocrática//PT-BR
+BEGIN:VEVENT
+UID:${Date.now()}@zelo.app
+DTSTAMP:${new Date().toISOString().replace(/[-:]/g, '').split('.')[0]}Z
+DTSTART;TZID=America/Sao_Paulo:${startDateTime}
+SUMMARY:${title}
+DESCRIPTION:${details}
+LOCATION:${location}
+END:VEVENT
+END:VCALENDAR`;
+
+      const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `designacao_${assign.date}.ics`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
   };
 
   // Nome do Secretário para exibição fixa
@@ -274,21 +313,32 @@ const PublisherDashboard: React.FC<PublisherDashboardProps> = ({ member, schedul
            {myAssignments.length > 0 ? (
                <div className="space-y-3 max-h-[300px] overflow-y-auto custom-scrollbar">
                    {myAssignments.map((assign, idx) => (
-                       <div key={idx} className="flex items-center gap-4 p-3 bg-purple-50 rounded-lg border border-purple-100">
-                           <div className="bg-white p-2 rounded-md shadow-sm text-center min-w-[60px]">
-                               <span className="block text-xs text-purple-600 font-bold uppercase">
-                                 {new Date(assign.date).toLocaleDateString('pt-BR', { month: 'short', timeZone: 'UTC' }).replace('.', '')}
-                               </span>
-                               <span className="block text-xl font-bold text-slate-800">
-                                 {new Date(assign.date).getUTCDate()}
-                               </span>
+                       <div key={idx} className="flex justify-between items-center p-3 bg-purple-50 rounded-lg border border-purple-100">
+                           <div className="flex items-center gap-3">
+                                <div className="bg-white p-2 rounded-md shadow-sm text-center min-w-[50px]">
+                                    <span className="block text-xs text-purple-600 font-bold uppercase">
+                                        {new Date(assign.date).toLocaleDateString('pt-BR', { month: 'short', timeZone: 'UTC' }).replace('.', '')}
+                                    </span>
+                                    <span className="block text-lg font-bold text-slate-800 leading-none">
+                                        {new Date(assign.date).getUTCDate()}
+                                    </span>
+                                </div>
+                                <div>
+                                    <h4 className="font-bold text-slate-800 text-sm">{assign.description}</h4>
+                                    <p className="text-xs text-purple-600 flex items-center gap-1">
+                                        <Clock size={10} /> {assign.startTime || '19:30'} • {assign.type}
+                                    </p>
+                                </div>
                            </div>
-                           <div>
-                               <h4 className="font-bold text-slate-800">{assign.description}</h4>
-                               <p className="text-sm text-purple-600 flex items-center gap-1">
-                                   <ShieldCheck size={14} /> {assign.type}
-                               </p>
-                           </div>
+                           
+                           {/* BOTÃO ADICIONAR À AGENDA (INOVAÇÃO 4) */}
+                           <button 
+                                onClick={() => handleAddToCalendar(assign)}
+                                className="p-2 text-purple-600 hover:bg-white hover:text-purple-800 rounded-full transition-colors"
+                                title="Adicionar ao Calendário"
+                           >
+                               <CalendarPlus size={20} />
+                           </button>
                        </div>
                    ))}
                </div>

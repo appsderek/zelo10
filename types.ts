@@ -15,7 +15,8 @@ export type ModuleKey =
   | 'idea_bank'
   | 'report_inbox'
   | 'territories'
-  | 'public_witnessing';
+  | 'public_witnessing'
+  | 'logs'; // Novo módulo
 
 export const ALL_MODULES: Record<ModuleKey, string> = {
   members: 'Publicadores',
@@ -32,7 +33,8 @@ export const ALL_MODULES: Record<ModuleKey, string> = {
   idea_bank: 'Banco de Ideias (IA)',
   report_inbox: 'Caixa de Entrada (Relatórios)',
   territories: 'Territórios & Mapas',
-  public_witnessing: 'Testemunho Público (Carrinhos)'
+  public_witnessing: 'Testemunho Público (Carrinhos)',
+  logs: 'Log do Sistema'
 };
 
 // --- CONTROLE DE ACESSO ---
@@ -258,6 +260,9 @@ export interface Territory {
   assignedDate?: string;
   lastWorkedDate?: string;
   notes?: string;
+  // Geo-Analytics (Inovação 2)
+  latitude?: number;
+  longitude?: number;
 }
 
 export interface TerritoryHistory {
@@ -292,4 +297,15 @@ export interface CartShift {
   endTime: string;
   // assignments substitui assignedPublisherIds para mapeamento preciso
   assignments: CartAssignment[];
+}
+
+// --- LOG DO SISTEMA ---
+export interface LogEntry {
+  id: string;
+  timestamp: string;
+  userName: string;
+  userRole?: string;
+  module: string;
+  action: 'create' | 'update' | 'delete' | 'other';
+  description: string;
 }

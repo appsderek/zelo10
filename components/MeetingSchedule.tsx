@@ -1,7 +1,101 @@
+
 import React, { useState } from 'react';
 import { WeekSchedule, Member, MeetingPart } from '../types';
-import { Plus, Save, Trash2, ArrowLeft, Printer, Copy, Edit, Eye, X, AlertTriangle } from 'lucide-react';
+import { Plus, Save, Trash2, ArrowLeft, Printer, Copy, Edit, Eye, X, AlertTriangle, List, UserPlus } from 'lucide-react';
 import { handlePrint } from '../services/notificationService';
+
+// --- COMPONENTE AUXILIAR (Extraído para manter estado de foco e modo manual) ---
+interface MemberSelectProps {
+  members: Member[];
+  value: string;
+  onChange: (val: string) => void;
+  placeholder?: string;
+  className?: string;
+  isReadOnly?: boolean;
+}
+
+const MemberSelect: React.FC<MemberSelectProps> = ({ members, value, onChange, placeholder = "Selecione...", className = "", isReadOnly = false }) => {
+    const sortedMembers = [...members].sort((a, b) => a.fullName.localeCompare(b.fullName));
+    
+    // Verifica se é um valor customizado (não está na lista de membros)
+    // Se tiver valor e não bater com nenhum nome da lista, assume que é manual.
+    const isCustomValue = value && value !== '' && !sortedMembers.some(m => m.fullName === value);
+    
+    // Estado local para controlar o modo de input
+    const [isManualMode, setIsManualMode] = useState(!!isCustomValue);
+
+    // Sincroniza o modo manual se o valor mudar externamente (ex: carregar dados salvos)
+    React.useEffect(() => {
+        if (value && !sortedMembers.some(m => m.fullName === value)) {
+            setIsManualMode(true);
+        } else if (value && sortedMembers.some(m => m.fullName === value)) {
+            setIsManualMode(false);
+        }
+    }, [value, sortedMembers]);
+
+    const handleSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        const val = e.target.value;
+        if (val === '___CUSTOM___') {
+            setIsManualMode(true);
+            onChange(''); // Limpa valor para começar a digitar
+        } else {
+            setIsManualMode(false);
+            onChange(val);
+        }
+    };
+
+    const handleManualCancel = () => {
+        setIsManualMode(false);
+        onChange('');
+    };
+
+    if (isManualMode) {
+        return (
+            <div className="flex gap-1 items-center">
+                <div className="relative w-full">
+                    <input 
+                        type="text"
+                        className={`w-full p-1.5 border border-purple-300 rounded text-sm bg-purple-50 text-purple-900 outline-none focus:border-purple-500 font-medium ${className}`}
+                        value={value}
+                        onChange={(e) => onChange(e.target.value)}
+                        placeholder="Digite o nome..."
+                        autoFocus={!value} 
+                        disabled={isReadOnly}
+                    />
+                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-purple-400 font-bold pointer-events-none">MANUAL</span>
+                </div>
+                {!isReadOnly && (
+                    <button
+                        onClick={handleManualCancel}
+                        className="bg-slate-200 hover:bg-slate-300 text-slate-600 p-1.5 rounded transition-colors"
+                        title="Voltar para Lista"
+                    >
+                        <List size={16} />
+                    </button>
+                )}
+            </div>
+        );
+    }
+
+    return (
+        <div className="w-full">
+            <select 
+                className={`w-full p-1.5 border rounded text-sm bg-white outline-none focus:border-purple-500 ${className}`}
+                value={value}
+                onChange={handleSelectChange}
+                disabled={isReadOnly}
+            >
+                <option value="">{placeholder}</option>
+                {sortedMembers.map(m => (
+                    <option key={m.id} value={m.fullName}>{m.fullName}</option>
+                ))}
+                <option value="___CUSTOM___" className="font-bold text-purple-600 bg-purple-50">
+                    + Outro / Convidado (Digitar)
+                </option>
+            </select>
+        </div>
+    );
+};
 
 interface MeetingScheduleProps {
   members: Member[];
@@ -15,25 +109,6 @@ const MeetingSchedule: React.FC<MeetingScheduleProps> = ({ members, schedules, o
   const [view, setView] = useState<'list' | 'editor' | 'preview'>('list');
   const [currentSchedule, setCurrentSchedule] = useState<WeekSchedule | null>(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-
-  // Ordena membros para o Select
-  const sortedMembers = [...members].sort((a, b) => a.fullName.localeCompare(b.fullName));
-
-  // Componente Auxiliar de Seleção
-  const MemberSelect = ({ value, onChange, placeholder = "Selecione...", className = "" }: { value: string, onChange: (val: string) => void, placeholder?: string, className?: string }) => (
-    <select 
-      className={`w-full p-1 border rounded text-sm bg-white outline-none focus:border-purple-500 ${className}`}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      disabled={isReadOnly}
-    >
-      <option value="">{placeholder}</option>
-      {sortedMembers.map(m => (
-        <option key={m.id} value={m.fullName}>{m.fullName}</option>
-      ))}
-      <option value="Outro/Convidado">Outro/Convidado (Editar manualmente se necessário)</option>
-    </select>
-  );
 
   // --- TEMPLATES ---
   const emptySchedule: WeekSchedule = {
@@ -271,7 +346,7 @@ const MeetingSchedule: React.FC<MeetingScheduleProps> = ({ members, schedules, o
                  <span className="bg-gray-100 px-1">{formattedDate}</span> <span className="mx-2">|</span> LEITURA SEMANAL DA BÍBLIA
               </div>
               <div className="text-right flex justify-end gap-2">
-                 <span className="font-bold text-gray-600 text-[10px] uppercase">Chairman:</span>
+                 <span className="font-bold text-gray-600 text-[10px] uppercase">Presidente:</span>
                  <span className="font-bold border-b border-gray-300 min-w-[100px] text-center">{currentSchedule.chairman}</span>
               </div>
 
@@ -461,6 +536,7 @@ const MeetingSchedule: React.FC<MeetingScheduleProps> = ({ members, schedules, o
                 <div className={isMinistry ? "md:col-span-2" : "md:col-span-4"}>
                      <label className="text-[10px] font-bold text-slate-500 uppercase">Designado {isMinistry ? '(Estudante)' : ''}</label>
                      <MemberSelect 
+                        members={members}
                         value={part.assignedTo} 
                         onChange={val => handlePartChange(part.id, 'assignedTo', val, type)} 
                         placeholder={isMinistry ? "Estudante..." : "Designado..."}
@@ -469,6 +545,7 @@ const MeetingSchedule: React.FC<MeetingScheduleProps> = ({ members, schedules, o
                         <div className="mt-1">
                           <label className="text-[9px] font-bold text-slate-400 uppercase">Sala B</label>
                           <MemberSelect 
+                            members={members}
                             value={part.assignedToB || ''} 
                             onChange={val => handlePartChange(part.id, 'assignedToB', val, type)} 
                             placeholder="Designado Sala B..."
@@ -480,6 +557,7 @@ const MeetingSchedule: React.FC<MeetingScheduleProps> = ({ members, schedules, o
                      <div className="md:col-span-2">
                         <label className="text-[10px] font-bold text-slate-500 uppercase">Ajudante</label>
                         <MemberSelect 
+                            members={members}
                             value={part.assistant || ''} 
                             onChange={val => handlePartChange(part.id, 'assistant', val, type)} 
                             placeholder="Ajudante..."
@@ -488,6 +566,7 @@ const MeetingSchedule: React.FC<MeetingScheduleProps> = ({ members, schedules, o
                             <div className="mt-1">
                               <label className="text-[9px] font-bold text-slate-400 uppercase">Sala B</label>
                               <MemberSelect 
+                                members={members}
                                 value={part.assistantB || ''} 
                                 onChange={val => handlePartChange(part.id, 'assistantB', val, type)} 
                                 placeholder="Ajudante Sala B..."
@@ -526,11 +605,11 @@ const MeetingSchedule: React.FC<MeetingScheduleProps> = ({ members, schedules, o
                 </div>
                 <div className="space-y-1">
                     <label className="text-xs font-bold text-slate-500">Presidente</label>
-                    <MemberSelect value={currentSchedule.chairman} onChange={val => setCurrentSchedule({...currentSchedule, chairman: val})} placeholder="Selecione o Presidente..." />
+                    <MemberSelect members={members} value={currentSchedule.chairman} onChange={val => setCurrentSchedule({...currentSchedule, chairman: val})} placeholder="Selecione o Presidente..." />
                 </div>
                 <div className="space-y-1">
                     <label className="text-xs font-bold text-slate-500">Conselheiro Sala B</label>
-                    <MemberSelect value={currentSchedule.auxClassCounselor} onChange={val => setCurrentSchedule({...currentSchedule, auxClassCounselor: val})} placeholder="Selecione o Conselheiro..." />
+                    <MemberSelect members={members} value={currentSchedule.auxClassCounselor} onChange={val => setCurrentSchedule({...currentSchedule, auxClassCounselor: val})} placeholder="Selecione o Conselheiro..." />
                 </div>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 bg-slate-50 p-3 rounded-lg border border-slate-100">
@@ -544,7 +623,7 @@ const MeetingSchedule: React.FC<MeetingScheduleProps> = ({ members, schedules, o
                  </div>
                  <div className="space-y-1 col-span-2">
                     <label className="text-xs font-bold text-slate-500">Oração Inicial</label>
-                    <MemberSelect value={currentSchedule.openingPrayer} onChange={val => setCurrentSchedule({...currentSchedule, openingPrayer: val})} placeholder="Selecione..." />
+                    <MemberSelect members={members} value={currentSchedule.openingPrayer} onChange={val => setCurrentSchedule({...currentSchedule, openingPrayer: val})} placeholder="Selecione..." />
                  </div>
             </div>
         </div>
@@ -606,11 +685,11 @@ const MeetingSchedule: React.FC<MeetingScheduleProps> = ({ members, schedules, o
                     </div>
                     <div className="md:col-span-3">
                         <label className="text-[10px] font-bold text-slate-500 uppercase">Dirigente</label>
-                        <MemberSelect value={currentSchedule.congregationStudy.conductor} onChange={val => handleCongregationStudyChange('conductor', val)} placeholder="Dirigente..." />
+                        <MemberSelect members={members} value={currentSchedule.congregationStudy.conductor} onChange={val => handleCongregationStudyChange('conductor', val)} placeholder="Dirigente..." />
                     </div>
                     <div className="md:col-span-3">
                         <label className="text-[10px] font-bold text-slate-500 uppercase">Leitor</label>
-                        <MemberSelect value={currentSchedule.congregationStudy.reader} onChange={val => handleCongregationStudyChange('reader', val)} placeholder="Leitor..." />
+                        <MemberSelect members={members} value={currentSchedule.congregationStudy.reader} onChange={val => handleCongregationStudyChange('reader', val)} placeholder="Leitor..." />
                     </div>
                  </div>
             </div>
@@ -643,7 +722,7 @@ const MeetingSchedule: React.FC<MeetingScheduleProps> = ({ members, schedules, o
                      </div>
                      <div className="md:col-span-6">
                         <label className="text-[10px] font-bold text-slate-500 uppercase">Oração Final</label>
-                        <MemberSelect value={currentSchedule.closingPrayer} onChange={val => setCurrentSchedule({...currentSchedule, closingPrayer: val})} placeholder="Selecione..." />
+                        <MemberSelect members={members} value={currentSchedule.closingPrayer} onChange={val => setCurrentSchedule({...currentSchedule, closingPrayer: val})} placeholder="Selecione..." />
                      </div>
                 </div>
             </div>

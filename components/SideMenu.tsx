@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { LayoutDashboard, Users, CalendarCheck, FileText, Map, ClipboardList, DatabaseBackup, BookOpen, ShieldCheck, Sparkles, Mic2, MapPinned, LogOut, Lock, Presentation, Lightbulb, RefreshCw, Inbox, Link as LinkIcon, Globe, Store } from 'lucide-react';
+import { LayoutDashboard, Users, CalendarCheck, FileText, Map, ClipboardList, DatabaseBackup, BookOpen, ShieldCheck, Sparkles, Mic2, MapPinned, LogOut, Lock, Presentation, Lightbulb, RefreshCw, Inbox, Link as LinkIcon, Globe, Store, ScrollText } from 'lucide-react';
 import { SystemRole } from '../types';
 
 interface SideMenuProps {
@@ -16,7 +16,7 @@ interface SideMenuProps {
 const SideMenu: React.FC<SideMenuProps> = ({ activeTab, setActiveTab, isMobileOpen, setIsMobileOpen, onLogout, userRole, currentUserRoles = [] }) => {
   
   // VERSÃO DO SISTEMA
-  const APP_VERSION = "Z-Elo v1.2";
+  const APP_VERSION = "Z-Elo v1.3";
 
   const hasServicePrivilege = userRole === SystemRole.TOTAL || 
                               currentUserRoles.includes('Coordenador') || 
@@ -40,6 +40,7 @@ const SideMenu: React.FC<SideMenuProps> = ({ activeTab, setActiveTab, isMobileOp
     { id: 'reports', label: 'Relatórios de Campo', icon: <ClipboardList size={20} /> },
     { id: 'attendance', label: 'Assistência', icon: <CalendarCheck size={20} /> },
     { id: 'access', label: 'Controle de Acesso', icon: <Lock size={20} /> },
+    { id: 'logs', label: 'Log do Sistema', icon: <ScrollText size={20} /> }, // Novo Módulo de Log
     { id: 'data', label: 'Dados & Backup', icon: <DatabaseBackup size={20} /> },
   ];
 
@@ -62,7 +63,7 @@ const SideMenu: React.FC<SideMenuProps> = ({ activeTab, setActiveTab, isMobileOp
     menuItems = allAdminItems;
   } else if (userRole === SystemRole.SELECTIVE) {
     // 1. Base: Remove itens técnicos
-    let selectiveItems = allAdminItems.filter(item => item.id !== 'access' && item.id !== 'data');
+    let selectiveItems = allAdminItems.filter(item => item.id !== 'access' && item.id !== 'data' && item.id !== 'logs');
     
     // 2. Filtro de Módulos Especiais (Territórios e Carrinhos)
     // Só mostra se tiver permissão de Coordenador ou Sup. Serviço
