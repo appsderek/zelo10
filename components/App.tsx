@@ -18,8 +18,12 @@ import PublisherDashboard from './components/PublisherDashboard';
 import PublicTalks from './components/PublicTalks';
 import IdeaBank from './components/IdeaBank';
 import ReportInbox from './components/ReportInbox';
+import Territories from './components/Territories';
+import PublicWitnessing from './components/PublicWitnessing';
+import LGPDBanner from './components/LGPDBanner';
+import SystemLog from './components/SystemLog'; // Novo componente
 
-import { Member, AttendanceRecord, Group, ServiceReport, WeekSchedule, DutyAssignment, CleaningAssignment, ChairmanReaderAssignment, FieldServiceMeeting, PublicTalk, SystemRole, AppSettings, ModuleKey, PublicTalkOutline, InboxMessage } from './types';
+import { Member, AttendanceRecord, Group, ServiceReport, WeekSchedule, DutyAssignment, CleaningAssignment, ChairmanReaderAssignment, FieldServiceMeeting, PublicTalk, SystemRole, AppSettings, ModuleKey, PublicTalkOutline, InboxMessage, Territory, TerritoryHistory, CartLocation, CartShift, LogEntry } from './types';
 import { Menu, Loader2, CloudOff, Cloud, ShieldCheck } from 'lucide-react';
 import { initSupabase, loadFromCloud, saveToCloud, PROJECT_URL, PROJECT_KEY } from './services/supabaseService';
 
@@ -33,7 +37,7 @@ const App: React.FC = () => {
   // Auth State
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentRole, setCurrentRole] = useState<SystemRole | null>(null);
-  const [currentUser, setCurrentUser] = useState<Member | { fullName: string, customRole: SystemRole, permissions: Partial<Record<ModuleKey, boolean>> } | undefined>(undefined);
+  const [currentUser, setCurrentUser] = useState<Member | { fullName: string, customRole: SystemRole, permissions: Partial<Record<ModuleKey, boolean>>, roles?: string[] } | undefined>(undefined);
 
   // Data State
   const [settings, setSettings] = useState<AppSettings>({ adminPassword: '1234' });
@@ -50,6 +54,15 @@ const App: React.FC = () => {
   const [publicTalks, setPublicTalks] = useState<PublicTalk[]>([]);
   const [publicTalkOutlines, setPublicTalkOutlines] = useState<PublicTalkOutline[]>([]);
   
+  // Novos Estados para Módulos Extras
+  const [territories, setTerritories] = useState<Territory[]>([]);
+  const [territoryHistory, setTerritoryHistory] = useState<TerritoryHistory[]>([]);
+  const [cartLocations, setCartLocations] = useState<CartLocation[]>([]);
+  const [cartShifts, setCartShifts] = useState<CartShift[]>([]);
+
+  // Estado para Logs
+  const [systemLogs, setSystemLogs] = useState<LogEntry[]>([]);
+
   // Estado para persistência de notificações
   const [sentNotificationIds, setSentNotificationIds] = useState<string[]>([]);
   // Estado para Mensagens Internas (Inbox do Dirigente)
@@ -65,7 +78,6 @@ const App: React.FC = () => {
 
   // --- NOTIFICATION REQUEST ---
   useEffect(() => {
-    // Solicita permissão para notificar assim que logar
     if (isAuthenticated && 'Notification' in window) {
       if (Notification.permission === 'default') {
         Notification.requestPermission();
@@ -85,13 +97,12 @@ const App: React.FC = () => {
   };
 
   useEffect(() => {
-    // Monitora eventos de atividade
     const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'];
     const handleActivity = () => resetIdleTimer();
 
     if (isAuthenticated) {
       events.forEach(event => window.addEventListener(event, handleActivity));
-      resetIdleTimer(); // Inicia o timer
+      resetIdleTimer();
     }
 
     return () => {
@@ -115,11 +126,16 @@ const App: React.FC = () => {
       if (connected) {
         setCloudStatus('connected');
         try {
-            const [mRes, gRes, rRes, aRes, sRes, dRes, cRes, cnRes, crRes, fsRes, ptRes, ptoRes, setRes, notifRes, inboxRes] = await Promise.all([
+            const [
+                mRes, gRes, rRes, aRes, sRes, dRes, cRes, cnRes, crRes, fsRes, ptRes, ptoRes, setRes, notifRes, inboxRes,
+                terrRes, terrHistRes, cartLocRes, cartShiftRes, logsRes
+            ] = await Promise.all([
               loadFromCloud('members'), loadFromCloud('groups'), loadFromCloud('reports'), loadFromCloud('attendance'),
               loadFromCloud('schedules'), loadFromCloud('duties'), loadFromCloud('cleaning'), loadFromCloud('cleaning_notes'),
               loadFromCloud('chairman_readers'), loadFromCloud('field_service'), loadFromCloud('public_talks'), loadFromCloud('public_talk_outlines'), 
-              loadFromCloud('settings'), loadFromCloud('sent_notifications'), loadFromCloud('inbox_messages')
+              loadFromCloud('settings'), loadFromCloud('sent_notifications'), loadFromCloud('inbox_messages'),
+              loadFromCloud('territories'), loadFromCloud('territory_history'), loadFromCloud('cart_locations'), loadFromCloud('cart_shifts'),
+              loadFromCloud('system_logs')
             ]);
 
             if (mRes.data) setMembers(mRes.data);
@@ -147,6 +163,15 @@ const App: React.FC = () => {
             if (setRes.data) setSettings(setRes.data);
             if (notifRes.data) setSentNotificationIds(notifRes.data);
             if (inboxRes.data) setInboxMessages(inboxRes.data);
+            
+            // Novos Módulos
+            if (terrRes.data) setTerritories(terrRes.data);
+            if (terrHistRes.data) setTerritoryHistory(terrHistRes.data);
+            if (cartLocRes.data) setCartLocations(cartLocRes.data);
+            if (cartShiftRes.data) setCartShifts(cartShiftRes.data);
+            
+            // Logs
+            if (logsRes.data) setSystemLogs(logsRes.data);
 
             loadedFromCloud = true;
         } catch (e) { 
@@ -186,6 +211,13 @@ const App: React.FC = () => {
         setSettings(load('jw_settings', { adminPassword: '1234' }));
         setSentNotificationIds(load('jw_sent_notifications', []));
         setInboxMessages(load('jw_inbox_messages', []));
+        
+        setTerritories(load('jw_territories', []));
+        setTerritoryHistory(load('jw_territory_history', []));
+        setCartLocations(load('jw_cart_locations', []));
+        setCartShifts(load('jw_cart_shifts', []));
+        
+        setSystemLogs(load('jw_system_logs', []));
       }
 
       setIsLoading(false);
@@ -203,7 +235,10 @@ const App: React.FC = () => {
         saveToCloud('chairman_readers', chairmanReaders), saveToCloud('field_service', fieldServiceSchedule),
         saveToCloud('public_talks', publicTalks), saveToCloud('public_talk_outlines', publicTalkOutlines),
         saveToCloud('settings', settings), saveToCloud('sent_notifications', sentNotificationIds),
-        saveToCloud('inbox_messages', inboxMessages)
+        saveToCloud('inbox_messages', inboxMessages),
+        saveToCloud('territories', territories), saveToCloud('territory_history', territoryHistory),
+        saveToCloud('cart_locations', cartLocations), saveToCloud('cart_shifts', cartShifts),
+        saveToCloud('system_logs', systemLogs)
       ]).then(() => setLastSaved(new Date())).catch(e => console.error("Falha ao salvar na nuvem:", e));
     } else {
       localStorage.setItem('jw_members', JSON.stringify(members));
@@ -221,6 +256,11 @@ const App: React.FC = () => {
       localStorage.setItem('jw_settings', JSON.stringify(settings));
       localStorage.setItem('jw_sent_notifications', JSON.stringify(sentNotificationIds));
       localStorage.setItem('jw_inbox_messages', JSON.stringify(inboxMessages));
+      localStorage.setItem('jw_territories', JSON.stringify(territories));
+      localStorage.setItem('jw_territory_history', JSON.stringify(territoryHistory));
+      localStorage.setItem('jw_cart_locations', JSON.stringify(cartLocations));
+      localStorage.setItem('jw_cart_shifts', JSON.stringify(cartShifts));
+      localStorage.setItem('jw_system_logs', JSON.stringify(systemLogs));
       setLastSaved(new Date());
     }
   };
@@ -229,13 +269,29 @@ const App: React.FC = () => {
     if (isLoading) return; 
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
     debounceTimer.current = setTimeout(saveState, 1500); 
-  }, [members, groups, attendance, serviceReports, settings, schedules, duties, cleaningSchedule, cleaningNotes, chairmanReaders, fieldServiceSchedule, publicTalks, publicTalkOutlines, sentNotificationIds, inboxMessages, isLoading]);
+  }, [members, groups, attendance, serviceReports, settings, schedules, duties, cleaningSchedule, cleaningNotes, chairmanReaders, fieldServiceSchedule, publicTalks, publicTalkOutlines, sentNotificationIds, inboxMessages, territories, territoryHistory, cartLocations, cartShifts, systemLogs, isLoading]);
+
+  // --- LOGGING HELPER ---
+  const registerLog = (action: 'create' | 'update' | 'delete' | 'other', module: string, description: string) => {
+      const newLog: LogEntry = {
+          id: crypto.randomUUID(),
+          timestamp: new Date().toISOString(),
+          userName: currentUser ? currentUser.fullName : 'Sistema',
+          userRole: currentUser ? ('customRole' in currentUser ? currentUser.customRole : 'Publicador') : '',
+          module,
+          action,
+          description
+      };
+      
+      // Mantém apenas os últimos 50 logs (LIFO - Last In First Out visualmente)
+      setSystemLogs(prev => [newLog, ...prev].slice(0, 50));
+  };
 
   // --- HANDLERS ---
   const handleLogin = (role: SystemRole, member?: Member) => {
     setIsAuthenticated(true);
     setCurrentRole(role);
-    setCurrentUser(member || { fullName: 'Administrador', customRole: SystemRole.TOTAL, permissions: {} });
+    setCurrentUser(member || { fullName: 'Administrador', customRole: SystemRole.TOTAL, permissions: {}, roles: ['Coordenador', 'Secretário', 'Sup. Serviço'] });
     setActiveTab('dashboard'); 
   };
   
@@ -254,6 +310,15 @@ const App: React.FC = () => {
     }
     return false;
   };
+
+  // Verifica permissão específica para Carrinhos (Admin ou Coordenador/Sup. Serviço)
+  const canManageService = (): boolean => {
+      if (currentRole === SystemRole.TOTAL) return true;
+      if (currentUser && 'roles' in currentUser && currentUser.roles) {
+          return currentUser.roles.includes('Coordenador') || currentUser.roles.includes('Sup. Serviço');
+      }
+      return false;
+  };
   
   // Função para salvar relatório pessoal E GERAR NOTIFICAÇÃO PRO SECRETÁRIO
   const handleSavePersonalReport = (report: ServiceReport) => {
@@ -263,20 +328,22 @@ const App: React.FC = () => {
          return [...filtered, report];
      });
 
-     // 2. Lógica de Notificação para o Secretário (Cristiano Santos)
+     registerLog('create', 'Relatórios', `Relatório pessoal enviado: ${report.hours}h`);
+
+     // 2. Lógica de Notificação para o Secretário
      if (currentUser && 'id' in currentUser) {
         const member = currentUser as Member;
         
-        // Busca prioritária por nome "Cristiano Santos" (insensível a case)
-        let targetOverseer = members.find(m => m.fullName.trim().toLowerCase() === 'cristiano santos');
+        // A. Busca primária: Qualquer membro com a tag "Secretário"
+        let targetOverseer = members.find(m => m.roles?.includes('Secretário'));
         
-        // Se não encontrar, busca alguém com a tag "Secretário"
+        // B. Busca secundária (Legado): Nome específico "Cristiano Santos"
         if (!targetOverseer) {
-            targetOverseer = members.find(m => m.roles?.includes('Secretário'));
+            targetOverseer = members.find(m => m.fullName.trim().toLowerCase() === 'cristiano santos');
         }
         
-        // Fallback final se não achar ninguém
-        const targetName = targetOverseer ? targetOverseer.fullName : 'Cristiano Santos';
+        // C. Fallback: Se não achar ninguém, define para "Secretaria"
+        const targetName = targetOverseer ? targetOverseer.fullName : 'Secretaria';
         
         const newMessage: InboxMessage = {
             id: crypto.randomUUID(),
@@ -314,6 +381,7 @@ const App: React.FC = () => {
   const handleRegisterNotification = (id: string) => {
     if (!sentNotificationIds.includes(id)) {
         setSentNotificationIds(prev => [...prev, id]);
+        registerLog('other', 'Notificações', 'Notificação enviada via WhatsApp');
     }
   };
 
@@ -323,6 +391,7 @@ const App: React.FC = () => {
 
   const handleDeleteInboxMessage = (id: string) => {
      setInboxMessages(prev => prev.filter(msg => msg.id !== id));
+     registerLog('delete', 'Caixa de Entrada', 'Mensagem removida');
   };
 
   // Função para resetar o repositório (Limpeza de Mensagens)
@@ -330,23 +399,17 @@ const App: React.FC = () => {
     if (window.confirm("ATENÇÃO: Isso apagará todas as mensagens e histórico de relatórios recebidos na Caixa de Entrada. Deseja continuar?")) {
       setIsLoading(true); // Bloqueia a UI
       try {
-          // 1. Limpa Estado
           setInboxMessages([]);
-          
-          // 2. Limpa Local Storage
           localStorage.removeItem('jw_inbox_messages');
           localStorage.setItem('jw_inbox_messages', '[]');
-
-          // 3. Limpa Nuvem
           if (cloudStatus === 'connected') {
               await saveToCloud('inbox_messages', []);
           }
-
+          registerLog('delete', 'Sistema', 'Reset completo da Caixa de Entrada');
           alert("Caixa de entrada limpa com sucesso!");
           window.location.reload(); 
       } catch (error) {
           console.error("Erro ao limpar dados:", error);
-          // Mesmo com erro na nuvem, força limpeza local
           localStorage.setItem('jw_inbox_messages', '[]');
           window.location.reload();
       }
@@ -358,29 +421,23 @@ const App: React.FC = () => {
      if (window.confirm("PERIGO: Isso apagará TODOS os relatórios de campo de TODOS os publicadores e limpará a Caixa de Entrada. Esta ação é irreversível. Deseja continuar?")) {
         setIsLoading(true); // Bloqueia a UI
         try {
-            // 1. Limpa Estado
             setServiceReports([]);
             setInboxMessages([]); 
-
-            // 2. Limpa Local Storage
             localStorage.removeItem('jw_reports');
             localStorage.removeItem('jw_inbox_messages');
             localStorage.setItem('jw_reports', '[]');
             localStorage.setItem('jw_inbox_messages', '[]');
-
-            // 3. Limpa Nuvem
             if (cloudStatus === 'connected') {
                 await Promise.all([
                     saveToCloud('reports', []),
                     saveToCloud('inbox_messages', [])
                 ]);
             }
-            
+            registerLog('delete', 'Sistema', 'Exclusão em massa de Relatórios');
             alert("Todos os relatórios e mensagens foram apagados com sucesso.");
             window.location.reload();
         } catch (error) {
             console.error("Erro ao limpar dados:", error);
-            // Mesmo com erro, tenta limpar local
             localStorage.setItem('jw_reports', '[]');
             localStorage.setItem('jw_inbox_messages', '[]');
             window.location.reload();
@@ -393,7 +450,6 @@ const App: React.FC = () => {
     if (confirm("ATENÇÃO: RESET MESTRE (FÁBRICA)\n\nIsso apagará TODO o banco de dados na nuvem, limpará o armazenamento local e reiniciará o sistema como novo.\n\nTem certeza absoluta?")) {
       setIsLoading(true);
       try {
-        // 1. Limpa Nuvem (envia listas vazias para tudo)
         if (cloudStatus === 'connected') {
            await Promise.all([
              saveToCloud('members', []), saveToCloud('groups', []), saveToCloud('reports', []),
@@ -402,26 +458,23 @@ const App: React.FC = () => {
              saveToCloud('chairman_readers', []), saveToCloud('field_service', []),
              saveToCloud('public_talks', []), saveToCloud('public_talk_outlines', []),
              saveToCloud('settings', { adminPassword: '1234' }), 
-             saveToCloud('sent_notifications', []), saveToCloud('inbox_messages', [])
+             saveToCloud('sent_notifications', []), saveToCloud('inbox_messages', []),
+             saveToCloud('territories', []), saveToCloud('territory_history', []),
+             saveToCloud('cart_locations', []), saveToCloud('cart_shifts', []),
+             saveToCloud('system_logs', [])
            ]);
         }
-        
-        // 2. Limpa Local
         localStorage.clear();
-        
-        // 3. Limpa Service Workers (Cache PWA)
         if ('serviceWorker' in navigator) {
           const registrations = await navigator.serviceWorker.getRegistrations();
           for (const registration of registrations) {
              await registration.unregister();
           }
         }
-
         alert("Sistema resetado com sucesso. Reiniciando...");
         window.location.href = '/';
       } catch (e) {
         console.error(e);
-        // Fallback: garante que pelo menos o local seja limpo
         localStorage.clear();
         window.location.href = '/';
       }
@@ -452,6 +505,10 @@ const App: React.FC = () => {
                 return <ChairmanReaderRoster assignments={chairmanReaders} onSaveAssignments={()=>{}} isReadOnly={true} members={members} />;
             case 'field_service':
                 return <FieldServiceRoster meetings={fieldServiceSchedule} onSaveMeetings={()=>{}} isReadOnly={true} members={members} />;
+            case 'territories': // Publicadores podem ver territórios (Read Only)
+                return <Territories territories={territories} members={members} history={territoryHistory} onSaveTerritories={()=>{}} onSaveHistory={()=>{}} isReadOnly={true} />;
+            case 'public_witnessing': // Publicador pode ver e se inscrever
+                return <PublicWitnessing locations={cartLocations} shifts={cartShifts} members={members} onSaveLocations={()=>{}} onSaveShifts={(s) => {setCartShifts(s); registerLog('update', 'Carrinhos', 'Inscrição/Cancelamento em turno')}} isReadOnly={true} currentUser={currentUser as Member} />;
             case 'duties':
                 return <DutyRoster assignments={duties} members={members} onSaveAssignments={()=>{}} isReadOnly={true} />;
             case 'cleaning':
@@ -499,50 +556,144 @@ const App: React.FC = () => {
           />
         );
       case 'report_inbox':
-         // Acesso restrito via canEdit para seletivos
-         if (currentRole === SystemRole.SELECTIVE && !canEdit('report_inbox')) {
-             return <div className="p-8 text-center text-gray-500">Acesso negado. Consulte o administrador.</div>;
-         }
+         if (currentRole === SystemRole.SELECTIVE && !canEdit('report_inbox')) return <div className="p-8 text-center text-gray-500">Acesso negado. Consulte o administrador.</div>;
          return <ReportInbox messages={inboxMessages} onMarkRead={handleMarkMessageRead} onDeleteMessage={handleDeleteInboxMessage} currentUser={currentUser as Member} isReadOnly={!canEdit('report_inbox')} members={members} groups={groups} />;
       case 'members':
-        return <Members members={members} groups={groups} onAddMember={m => setMembers(p => [...p, m])} onUpdateMember={m => setMembers(p => p.map(i => i.id === m.id ? m : i))} onDeleteMember={id => setMembers(p => p.filter(i => i.id !== id))} isReadOnly={!canEdit('members')} />;
+        return <Members 
+            members={members} 
+            groups={groups} 
+            onAddMember={m => { setMembers(p => [...p, m]); registerLog('create', 'Publicadores', `Adicionado: ${m.fullName}`); }} 
+            onUpdateMember={m => { setMembers(p => p.map(i => i.id === m.id ? m : i)); registerLog('update', 'Publicadores', `Editado: ${m.fullName}`); }} 
+            onDeleteMember={id => { const m = members.find(i => i.id === id); setMembers(p => p.filter(i => i.id !== id)); registerLog('delete', 'Publicadores', `Excluído: ${m?.fullName || id}`); }} 
+            isReadOnly={!canEdit('members')} 
+        />;
       case 'groups':
-        return <Groups groups={groups} members={members} reports={serviceReports} inboxMessages={inboxMessages} onAddGroup={g => setGroups(p => [...p, g])} onUpdateGroup={g => setGroups(p => p.map(i => i.id === g.id ? g : i))} onDeleteGroup={id => setGroups(p => p.filter(i => i.id !== id))} isReadOnly={!canEdit('groups')} />;
+        return <Groups 
+            groups={groups} 
+            members={members} 
+            reports={serviceReports} 
+            inboxMessages={inboxMessages} 
+            onAddGroup={g => { setGroups(p => [...p, g]); registerLog('create', 'Grupos', `Adicionado: ${g.name}`); }} 
+            onUpdateGroup={g => { setGroups(p => p.map(i => i.id === g.id ? g : i)); registerLog('update', 'Grupos', `Editado: ${g.name}`); }} 
+            onDeleteGroup={id => { const g = groups.find(i => i.id === id); setGroups(p => p.filter(i => i.id !== id)); registerLog('delete', 'Grupos', `Excluído: ${g?.name || id}`); }} 
+            isReadOnly={!canEdit('groups')} 
+        />;
+      case 'territories':
+        // Lógica de visualização para Todos, Edição apenas para quem tem permissão
+        return <Territories 
+            territories={territories} 
+            members={members} 
+            history={territoryHistory} 
+            onSaveTerritories={(t) => { setTerritories(t); registerLog('update', 'Territórios', 'Atualização de territórios'); }} 
+            onSaveHistory={(h) => setTerritoryHistory(h)} 
+            isReadOnly={!canEdit('territories')} 
+        />;
+      case 'public_witnessing':
+        return <PublicWitnessing 
+            locations={cartLocations} 
+            shifts={cartShifts} 
+            members={members} 
+            onSaveLocations={(l) => { setCartLocations(l); registerLog('update', 'Carrinhos', 'Atualização de Locais'); }} 
+            onSaveShifts={(s) => { setCartShifts(s); registerLog('update', 'Carrinhos', 'Atualização de Turnos'); }} 
+            isReadOnly={!canManageService()} 
+            currentUser={currentUser as Member} 
+        />;
       case 'attendance':
-        return <Attendance records={attendance} onAddRecord={r => setAttendance(p => [...p, r])} onDeleteRecord={id => setAttendance(p => p.filter(i => i.id !== id))} isReadOnly={!canEdit('attendance')} />;
+        return <Attendance 
+            records={attendance} 
+            onAddRecord={r => { setAttendance(p => [...p, r]); registerLog('create', 'Assistência', `Registro: ${r.count}`); }} 
+            onDeleteRecord={id => { setAttendance(p => p.filter(i => i.id !== id)); registerLog('delete', 'Assistência', 'Registro excluído'); }} 
+            isReadOnly={!canEdit('attendance')} 
+        />;
       case 'reports':
-        return <ServiceReports members={members} groups={groups} reports={serviceReports} onSaveReports={newR => setServiceReports(p => [...p.filter(pr => !newR.some(nr => nr.id === pr.id)), ...newR])} isReadOnly={!canEdit('reports')} />;
+        return <ServiceReports 
+            members={members} 
+            groups={groups} 
+            reports={serviceReports} 
+            onSaveReports={newR => { 
+                setServiceReports(p => [...p.filter(pr => !newR.some(nr => nr.id === pr.id)), ...newR]);
+                registerLog('update', 'Relatórios', `Atualização em massa (${newR.length} itens)`);
+            }} 
+            isReadOnly={!canEdit('reports')} 
+        />;
       case 'data':
-        // Acesso restrito apenas para TOTAL
         if (currentRole !== SystemRole.TOTAL) return <div className="p-8 text-center text-gray-500">Acesso restrito ao Administrador Geral.</div>;
         return <DataManagement 
             members={members} 
             groups={groups} 
             reports={serviceReports} 
             attendance={attendance} 
-            onImportData={() => {}} 
-            onResetInbox={handleResetInbox}
-            onDeleteAllReports={handleDeleteAllReports}
-            onMasterReset={handleMasterReset}
+            onImportData={(data) => { 
+                // Lógica simples de importação
+                if(data.members) setMembers(data.members); 
+                registerLog('create', 'Backup', 'Importação de Backup realizada');
+            }} 
+            onResetInbox={handleResetInbox} 
+            onDeleteAllReports={handleDeleteAllReports} 
+            onMasterReset={handleMasterReset} 
         />;
       case 'schedule':
-        return <MeetingSchedule members={members} schedules={schedules} onSaveSchedule={s => setSchedules(p => { const exists = p.some(ps => ps.id === s.id); return exists ? p.map(ps => ps.id === s.id ? s : ps) : [...p, s]; })} onDeleteSchedule={id => setSchedules(p => p.filter(s => s.id !== id))} isReadOnly={!canEdit('schedule')} />;
+        return <MeetingSchedule 
+            members={members} 
+            schedules={schedules} 
+            onSaveSchedule={s => { 
+                setSchedules(p => { const exists = p.some(ps => ps.id === s.id); return exists ? p.map(ps => ps.id === s.id ? s : ps) : [...p, s]; });
+                registerLog('update', 'Vida e Ministério', `Semana de ${s.date}`);
+            }} 
+            onDeleteSchedule={id => { setSchedules(p => p.filter(s => s.id !== id)); registerLog('delete', 'Vida e Ministério', 'Semana excluída'); }} 
+            isReadOnly={!canEdit('schedule')} 
+        />;
       case 'duties':
-        return <DutyRoster assignments={duties} members={members} onSaveAssignments={setDuties} isReadOnly={!canEdit('duties')} />;
+        return <DutyRoster 
+            assignments={duties} 
+            members={members} 
+            onSaveAssignments={(a) => { setDuties(a); registerLog('update', 'Apoio', 'Atualização de escala'); }} 
+            isReadOnly={!canEdit('duties')} 
+        />;
       case 'cleaning':
-        return <CleaningRoster assignments={cleaningSchedule} groups={groups} onSaveAssignments={setCleaningSchedule} globalObservations={cleaningNotes} onSaveGlobalObservations={setCleaningNotes} isReadOnly={!canEdit('cleaning')} />;
+        return <CleaningRoster 
+            assignments={cleaningSchedule} 
+            groups={groups} 
+            onSaveAssignments={(a) => { setCleaningSchedule(a); registerLog('update', 'Limpeza', 'Atualização de escala'); }} 
+            globalObservations={cleaningNotes} 
+            onSaveGlobalObservations={(n) => setCleaningNotes(n)} 
+            isReadOnly={!canEdit('cleaning')} 
+        />;
       case 'chairman_readers':
-        return <ChairmanReaderRoster assignments={chairmanReaders} onSaveAssignments={setChairmanReaders} isReadOnly={!canEdit('chairman_readers')} members={members} />;
+        return <ChairmanReaderRoster 
+            assignments={chairmanReaders} 
+            onSaveAssignments={(a) => { setChairmanReaders(a); registerLog('update', 'Presidentes', 'Atualização de escala'); }} 
+            isReadOnly={!canEdit('chairman_readers')} 
+            members={members} 
+        />;
       case 'field_service':
-        return <FieldServiceRoster meetings={fieldServiceSchedule} onSaveMeetings={setFieldServiceSchedule} isReadOnly={!canEdit('field_service')} members={members} />;
+        return <FieldServiceRoster 
+            meetings={fieldServiceSchedule} 
+            onSaveMeetings={(m) => { setFieldServiceSchedule(m); registerLog('update', 'Saídas de Campo', 'Atualização de escala'); }} 
+            isReadOnly={!canEdit('field_service')} 
+            members={members} 
+        />;
       case 'public_talks':
-        return <PublicTalks talks={publicTalks} outlines={publicTalkOutlines} onSaveTalks={setPublicTalks} onSaveOutlines={setPublicTalkOutlines} isReadOnly={!canEdit('public_talks')} />;
+        return <PublicTalks 
+            talks={publicTalks} 
+            outlines={publicTalkOutlines} 
+            onSaveTalks={(t) => { setPublicTalks(t); registerLog('update', 'Discursos', 'Agenda atualizada'); }} 
+            onSaveOutlines={(o) => setPublicTalkOutlines(o)} 
+            isReadOnly={!canEdit('public_talks')} 
+        />;
       case 'idea_bank':
         return <IdeaBank />;
       case 'access':
-        // Acesso restrito apenas para TOTAL
         if (currentRole !== SystemRole.TOTAL) return <div className="p-8 text-center text-gray-500">Acesso restrito ao Administrador Geral.</div>;
-        return <AccessControl members={members} settings={settings} onUpdateMember={m => setMembers(p => p.map(i => i.id === m.id ? m : i))} onUpdateSettings={setSettings} />;
+        return <AccessControl 
+            members={members} 
+            settings={settings} 
+            onUpdateMember={m => { setMembers(p => p.map(i => i.id === m.id ? m : i)); registerLog('update', 'Acesso', `Permissões de ${m.fullName}`); }} 
+            onUpdateSettings={setSettings} 
+        />;
+      case 'logs':
+        if (currentRole !== SystemRole.TOTAL) return <div className="p-8 text-center text-gray-500">Acesso restrito ao Administrador Geral.</div>;
+        return <SystemLog logs={systemLogs} />;
       default:
         // Fallback seguro
         if (currentRole === SystemRole.SELECTIVE && currentUser && 'id' in currentUser) {
@@ -557,6 +708,7 @@ const App: React.FC = () => {
 
   return (
     <div className="flex h-screen overflow-hidden">
+      <LGPDBanner />
       <SideMenu 
         activeTab={activeTab} 
         setActiveTab={setActiveTab} 
@@ -564,13 +716,17 @@ const App: React.FC = () => {
         setIsMobileOpen={setIsMobileOpen}
         onLogout={handleLogout}
         userRole={currentRole}
+        currentUserRoles={(currentUser && 'roles' in currentUser) ? currentUser.roles : []}
       />
       <div className="flex-1 flex flex-col overflow-hidden">
         <header className="lg:hidden p-3 bg-white border-b border-gray-200 flex items-center justify-between sticky top-0 z-10 print-hidden">
             <button onClick={() => setIsMobileOpen(true)}>
               <Menu size={24} />
             </button>
-            <span className="font-bold text-lg text-purple-900">Z-Elo</span>
+            <div className="flex flex-col items-center">
+               <span className="font-bold text-lg text-purple-900 leading-none">Z-Elo</span>
+               <span className="text-[10px] text-purple-600 font-medium leading-none">Gestão de Congregação</span>
+            </div>
             <div className={`flex items-center gap-1.5 text-xs ${cloudStatus === 'connected' ? 'text-green-600' : 'text-red-500'}`}>
                 {cloudStatus === 'connected' ? <Cloud size={16} /> : <CloudOff size={16} />}
                 <span className="hidden sm:inline">{cloudStatus === 'connected' ? 'Nuvem' : 'Offline'}</span>

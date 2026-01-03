@@ -18,10 +18,6 @@ const SideMenu: React.FC<SideMenuProps> = ({ activeTab, setActiveTab, isMobileOp
   // VERSÃO DO SISTEMA
   const APP_VERSION = "Z-Elo v1.3";
 
-  const hasServicePrivilege = userRole === SystemRole.TOTAL || 
-                              currentUserRoles.includes('Coordenador') || 
-                              currentUserRoles.includes('Sup. Serviço');
-
   // Itens disponíveis para ADMIN (Acesso Total)
   const allAdminItems = [
     { id: 'dashboard', label: 'Painel Geral', icon: <LayoutDashboard size={20} /> },
@@ -47,6 +43,7 @@ const SideMenu: React.FC<SideMenuProps> = ({ activeTab, setActiveTab, isMobileOp
   // Itens disponíveis para PUBLICADOR (Visualização Restrita)
   const publisherItems = [
     { id: 'dashboard', label: 'Meu Painel', icon: <LayoutDashboard size={20} /> },
+    { id: 'territories', label: 'Territórios (Mapas)', icon: <Globe size={20} /> }, // Adicionado para publicadores
     { id: 'schedule', label: 'Vida e Ministério', icon: <BookOpen size={20} /> },
     { id: 'public_talks', label: 'Discursos Públicos', icon: <Presentation size={20} /> },
     { id: 'chairman_readers', label: 'Presidentes e Leitores', icon: <Mic2 size={20} /> },
@@ -65,13 +62,6 @@ const SideMenu: React.FC<SideMenuProps> = ({ activeTab, setActiveTab, isMobileOp
     // 1. Base: Remove itens técnicos
     let selectiveItems = allAdminItems.filter(item => item.id !== 'access' && item.id !== 'data' && item.id !== 'logs');
     
-    // 2. Filtro de Módulos Especiais (Territórios e Carrinhos)
-    // Só mostra se tiver permissão de Coordenador ou Sup. Serviço
-    if (!hasServicePrivilege) {
-        selectiveItems = selectiveItems.filter(item => item.id !== 'territories');
-        // Mantém 'public_witnessing' mas talvez em modo leitura (tratado no componente)
-    }
-
     // Renomeia Dashboard
     selectiveItems = selectiveItems.map(item => 
         item.id === 'dashboard' ? { ...item, label: 'Meu Painel' } : item

@@ -17,9 +17,13 @@
     <link rel="apple-touch-icon" href="/icon.svg" />
     
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Adicionando html2canvas para impressão fiel -->
+    <!-- Adicionando html2canvas para compatibilidade legado -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     
+    <!-- LEAFLET MAPS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
       body {
@@ -33,27 +37,6 @@
         from { opacity: 0; transform: translateY(5px); }
         to { opacity: 1; transform: translateY(0); }
       }
-
-      /* Estilos básicos de impressão para esconder a interface durante o print nativo do browser */
-      @media print {
-        @page {
-          margin: 0;
-          size: auto;
-        }
-        .print-hidden, [data-print-hidden="true"] {
-          display: none !important;
-        }
-      }
-      
-      /* Classe auxiliar para textos que devem aparecer APENAS na impressão (substituindo inputs) */
-      .print-only {
-        display: none !important;
-      }
-      @media print {
-        .print-only {
-          display: block !important;
-        }
-      }
     </style>
   <script type="importmap">
 {
@@ -66,7 +49,9 @@
     "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.1/",
     "react-markdown": "https://aistudiocdn.com/react-markdown@^10.1.0",
     "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.39.3",
-    "crypto-js": "https://esm.sh/crypto-js@4.2.0"
+    "crypto-js": "https://esm.sh/crypto-js@4.2.0",
+    "jspdf": "https://esm.sh/jspdf@2.5.1",
+    "jspdf-autotable": "https://esm.sh/jspdf-autotable@3.8.2"
   }
 }
 </script>

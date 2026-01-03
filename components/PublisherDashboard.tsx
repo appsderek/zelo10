@@ -1,7 +1,8 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Member, WeekSchedule, DutyAssignment, ChairmanReaderAssignment, ServiceReport, PioneerStatus, Group } from '../types';
-import { User, Calendar, CheckCircle2, XCircle, Clock, BookOpenCheck, CalendarCheck, ShieldCheck, Send, AlertTriangle, Download, Trash2, Eye, CalendarPlus } from 'lucide-react';
+import { User, Calendar, CheckCircle2, XCircle, Clock, BookOpenCheck, CalendarCheck, ShieldCheck, Send, AlertTriangle, Download, Trash2, Eye, CalendarPlus, Map, ExternalLink } from 'lucide-react';
+import { loadFromCloud } from '../services/supabaseService';
 
 interface PublisherDashboardProps {
   member: Member;
@@ -30,6 +31,29 @@ const PublisherDashboard: React.FC<PublisherDashboardProps> = ({ member, schedul
   const [hours, setHours] = useState('');
   const [studies, setStudies] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Estado para Territórios Designados
+  const [myTerritories, setMyTerritories] = useState<any[]>([]);
+
+  // Carrega territórios ao montar (se possível)
+  useEffect(() => {
+      const fetchMyTerritories = async () => {
+          // Tenta carregar do localStorage primeiro para rapidez
+          const localTerritories = JSON.parse(localStorage.getItem('jw_territories') || '[]');
+          if (localTerritories.length > 0) {
+              const mine = localTerritories.filter((t: any) => t.currentAssigneeId === member.id);
+              setMyTerritories(mine);
+          } else {
+              // Fallback para nuvem se necessário (implementação simplificada)
+              const { data } = await loadFromCloud('territories');
+              if (data) {
+                  const mine = data.filter((t: any) => t.currentAssigneeId === member.id);
+                  setMyTerritories(mine);
+              }
+          }
+      };
+      fetchMyTerritories();
+  }, [member.id]);
 
   // Filtrar Designações Futuras
   const todayStr = today.toISOString().slice(0, 10);
@@ -348,6 +372,62 @@ END:VCALENDAR`;
                </div>
            )}
         </div>
+      </div>
+
+      {/* MEUS TERRITÓRIOS (NOVO) */}
+      <div className="bg-white rounded-xl p-6 shadow-lg border border-slate-200">
+          <h3 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
+              <Map className="text-purple-600" /> Meus Territórios
+          </h3>
+          
+          {myTerritories.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {myTerritories.map((t: any) => (
+                      <div key={t.id} className="border border-slate-200 rounded-xl overflow-hidden hover:shadow-md transition-shadow group">
+                          <div className="h-32 bg-slate-100 relative">
+                              <div className={`placeholder-map absolute inset-0 flex items-center justify-center text-slate-300 ${t.imageUrl ? 'hidden' : ''}`}>
+                                  <Map size={32} />
+                              </div>
+                              {t.imageUrl && (
+                                  <img 
+                                      src={t.imageUrl} 
+                                      alt={`Mapa ${t.number}`} 
+                                      className="w-full h-full object-cover cursor-pointer transition-opacity duration-300 opacity-0"
+                                      loading="lazy"
+                                      onLoad={(e) => e.currentTarget.classList.remove('opacity-0')}
+                                      onClick={() => window.open(t.imageUrl, '_blank')}
+                                      onError={(e) => {
+                                          e.currentTarget.style.display = 'none';
+                                          e.currentTarget.parentElement?.querySelector('.placeholder-map')?.classList.remove('hidden');
+                                      }}
+                                  />
+                              )}
+                              <div className="absolute top-2 left-2 bg-purple-600 text-white text-xs font-bold px-2 py-1 rounded shadow-sm">
+                                  #{t.number}
+                              </div>
+                              {t.imageUrl && (
+                                  <a 
+                                      href={t.imageUrl} 
+                                      target="_blank" 
+                                      rel="noreferrer" 
+                                      className="absolute bottom-2 right-2 bg-white/80 p-1.5 rounded-full hover:bg-white text-purple-700 transition-colors"
+                                  >
+                                      <ExternalLink size={14} />
+                                  </a>
+                              )}
+                          </div>
+                          <div className="p-3">
+                              <h4 className="font-bold text-slate-800 text-sm truncate" title={t.name}>{t.name}</h4>
+                              <p className="text-xs text-slate-500 mt-1">Designado em: {new Date(t.assignedDate).toLocaleDateString('pt-BR')}</p>
+                          </div>
+                      </div>
+                  ))}
+              </div>
+          ) : (
+              <div className="p-6 text-center text-slate-400 bg-slate-50 rounded-lg border border-dashed border-slate-200">
+                  <p>Você não possui territórios designados no momento.</p>
+              </div>
+          )}
       </div>
 
       {/* ÁREA DE PRIVACIDADE E LGPD */}

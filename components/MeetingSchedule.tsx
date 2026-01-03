@@ -1,8 +1,9 @@
 
 import React, { useState } from 'react';
 import { WeekSchedule, Member, MeetingPart } from '../types';
-import { Plus, Save, Trash2, ArrowLeft, Printer, Copy, Edit, Eye, X, AlertTriangle, List, UserPlus } from 'lucide-react';
-import { handlePrint } from '../services/notificationService';
+import { Plus, Save, Trash2, ArrowLeft, Printer, Copy, Edit, Eye, X, AlertTriangle, List, UserPlus, FileDown } from 'lucide-react';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 // --- COMPONENTE AUXILIAR (Extraído para manter estado de foco e modo manual) ---
 interface MemberSelectProps {
@@ -262,6 +263,185 @@ const MeetingSchedule: React.FC<MeetingScheduleProps> = ({ members, schedules, o
     }
   };
 
+  // --- PDF GENERATION LOGIC ---
+  const generatePDF = () => {
+    if (!currentSchedule) return;
+
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    let currentY = 15;
+
+    // --- HEADER ---
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text(currentSchedule.congregationName.toUpperCase(), 14, currentY);
+    
+    doc.setFontSize(14);
+    doc.setTextColor(0);
+    doc.setFont("helvetica", "bold");
+    doc.text("VIDA E MINISTÉRIO CRISTÃO", 14, currentY + 6);
+    
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    const dateStr = new Date(currentSchedule.date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric', timeZone: 'UTC' });
+    doc.text(`Semana de ${dateStr}`, 14, currentY + 12);
+
+    // President info right aligned
+    doc.setFontSize(10);
+    doc.text(`Presidente: ${currentSchedule.chairman}`, pageWidth - 14, currentY + 6, { align: 'right' });
+    if (currentSchedule.auxClassCounselor) {
+        doc.text(`Cons. Sala B: ${currentSchedule.auxClassCounselor}`, pageWidth - 14, currentY + 11, { align: 'right' });
+    }
+
+    currentY += 20;
+
+    // --- OPENING ---
+    doc.setFillColor(245, 245, 245); // Very Light Gray
+    doc.setDrawColor(200, 200, 200);
+    doc.rect(14, currentY, pageWidth - 28, 18, 'FD');
+    
+    doc.setFontSize(10);
+    doc.setTextColor(0);
+    doc.text(`${currentSchedule.openingSongTime}  •  Cântico ${currentSchedule.openingSong}`, 18, currentY + 6);
+    doc.text(`Oração: ${currentSchedule.openingPrayer}`, pageWidth - 18, currentY + 6, { align: 'right' });
+    doc.text(`${currentSchedule.openingCommentsTime}  •  ${currentSchedule.openingComments}`, 18, currentY + 12);
+
+    currentY += 22;
+
+    // --- SECTION 1: TESOUROS ---
+    // Title Bar
+    doc.setFillColor(80, 80, 80); // Dark Gray
+    doc.rect(14, currentY, pageWidth - 28, 8, 'F');
+    doc.setTextColor(255);
+    doc.setFont("helvetica", "bold");
+    doc.text("TESOUROS DA PALAVRA DE DEUS", 18, currentY + 5.5);
+    
+    currentY += 8;
+
+    // Treasures Table
+    const treasureRows = currentSchedule.treasuresParts.map(p => {
+        let assignee = p.assignedTo;
+        if (p.isBHall && p.assignedToB) {
+            assignee += `\n(Sala B: ${p.assignedToB})`;
+        }
+        return [p.time, p.theme + ` (${p.duration})`, assignee];
+    });
+
+    autoTable(doc, {
+        startY: currentY,
+        body: treasureRows,
+        theme: 'grid',
+        styles: { fontSize: 10, cellPadding: 3, textColor: 50, lineColor: [200, 200, 200], lineWidth: 0.1 },
+        columnStyles: {
+            0: { cellWidth: 20, fontStyle: 'bold' }, // Time
+            1: { cellWidth: 'auto', fontStyle: 'bold' }, // Theme
+            2: { cellWidth: 50 } // Assignee
+        }
+    });
+
+    currentY = (doc as any).lastAutoTable.finalY + 5;
+
+    // --- SECTION 2: MINISTÉRIO ---
+    // Title Bar
+    doc.setFillColor(180, 83, 9); // Amber/Brown
+    doc.rect(14, currentY, pageWidth - 28, 8, 'F');
+    doc.setTextColor(255);
+    doc.setFont("helvetica", "bold");
+    doc.text("FAÇA SEU MELHOR NO MINISTÉRIO", 18, currentY + 5.5);
+
+    currentY += 8;
+
+    const ministryRows = currentSchedule.ministryParts.map(p => {
+        let assignee = `${p.assignedTo}`;
+        if (p.assistant) assignee += ` / ${p.assistant}`;
+        
+        if (p.isBHall && (p.assignedToB || p.assistantB)) {
+            assignee += `\nSala B: ${p.assignedToB}`;
+            if(p.assistantB) assignee += ` / ${p.assistantB}`;
+        }
+        return [p.time, p.theme + ` (${p.duration})`, assignee];
+    });
+
+    autoTable(doc, {
+        startY: currentY,
+        body: ministryRows,
+        theme: 'grid',
+        styles: { fontSize: 10, cellPadding: 3, textColor: 50, lineColor: [200, 200, 200], lineWidth: 0.1 },
+        columnStyles: {
+            0: { cellWidth: 20, fontStyle: 'bold' },
+            1: { cellWidth: 'auto', fontStyle: 'bold' },
+            2: { cellWidth: 60 }
+        }
+    });
+
+    currentY = (doc as any).lastAutoTable.finalY + 5;
+
+    // --- SECTION 3: VIDA CRISTÃ ---
+    // Title Bar
+    doc.setFillColor(153, 27, 27); // Dark Red
+    doc.rect(14, currentY, pageWidth - 28, 8, 'F');
+    doc.setTextColor(255);
+    doc.setFont("helvetica", "bold");
+    doc.text("NOSSA VIDA CRISTÃ", 18, currentY + 5.5);
+
+    currentY += 8;
+
+    // Build rows for Living section including songs and study
+    const livingRows = [];
+    
+    // Middle Song
+    livingRows.push([currentSchedule.middleSongTime, `Cântico ${currentSchedule.middleSong}`, '']);
+
+    // Parts
+    currentSchedule.livingParts.forEach(p => {
+        livingRows.push([p.time, p.theme + ` (${p.duration})`, p.assignedTo]);
+    });
+
+    // Bible Study
+    livingRows.push([
+        currentSchedule.congregationStudyTime, 
+        `${currentSchedule.congregationStudy.theme} (30 min)`, 
+        `Dirigente: ${currentSchedule.congregationStudy.conductor}\nLeitor: ${currentSchedule.congregationStudy.reader}`
+    ]);
+
+    autoTable(doc, {
+        startY: currentY,
+        body: livingRows,
+        theme: 'grid',
+        styles: { fontSize: 10, cellPadding: 3, textColor: 50, lineColor: [200, 200, 200], lineWidth: 0.1 },
+        columnStyles: {
+            0: { cellWidth: 20, fontStyle: 'bold' },
+            1: { cellWidth: 'auto', fontStyle: 'bold' },
+            2: { cellWidth: 60 }
+        }
+    });
+
+    currentY = (doc as any).lastAutoTable.finalY + 5;
+
+    // --- CLOSING ---
+    // Se o espaço for curto, cria nova página
+    if (currentY + 20 > doc.internal.pageSize.getHeight()) {
+        doc.addPage();
+        currentY = 20;
+    }
+
+    doc.setFillColor(245, 245, 245);
+    doc.setDrawColor(200, 200, 200);
+    doc.rect(14, currentY, pageWidth - 28, 14, 'FD');
+    
+    doc.setTextColor(0);
+    doc.setFont("helvetica", "normal");
+    doc.text(`${currentSchedule.closingCommentsTime}  •  ${currentSchedule.closingComments}`, 18, currentY + 6);
+    doc.text(`${currentSchedule.closingSongTime}  •  Cântico ${currentSchedule.closingSong}  •  Oração: ${currentSchedule.closingPrayer}`, 18, currentY + 11);
+
+    // Footer
+    doc.setFontSize(8);
+    doc.setTextColor(150);
+    doc.text(`Gerado pelo sistema Z-Elo em ${new Date().toLocaleDateString('pt-BR')}`, 14, doc.internal.pageSize.getHeight() - 10);
+
+    doc.save(`vidaministerio_${currentSchedule.date}.pdf`);
+  };
+
   // --- RENDERERS ---
 
   // 1. LIST VIEW
@@ -273,7 +453,7 @@ const MeetingSchedule: React.FC<MeetingScheduleProps> = ({ members, schedules, o
           <p className="text-slate-500">Gerenciamento da programação semanal.</p>
         </div>
         {!isReadOnly && (
-          <button onClick={handleNew} className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-sm">
+          <button onClick={handleNew} className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-sm cursor-pointer">
             <Plus size={18} /> Nova Programação
           </button>
         )}
@@ -301,7 +481,7 @@ const MeetingSchedule: React.FC<MeetingScheduleProps> = ({ members, schedules, o
     </div>
   );
 
-  // 2. DOCUMENT PREVIEW (PDF STYLE)
+  // 2. DOCUMENT PREVIEW (SCREEN ONLY)
   const renderDocumentPreview = () => {
     if (!currentSchedule) return null;
 
@@ -310,20 +490,20 @@ const MeetingSchedule: React.FC<MeetingScheduleProps> = ({ members, schedules, o
     return (
       <div className="flex flex-col h-full">
         {/* Toolbar */}
-        <div className="flex flex-wrap items-center justify-between gap-4 mb-6 print-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
            <button onClick={() => setView('list')} className="flex items-center gap-2 text-slate-600 hover:text-slate-900 font-medium">
              <ArrowLeft size={20} /> Voltar
            </button>
            <div className="flex gap-2">
-             <button onClick={handlePrint} className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white hover:bg-slate-900 rounded-lg font-medium shadow-sm">
-                <Printer size={16} /> Imprimir
+             <button onClick={generatePDF} className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white hover:bg-slate-900 rounded-lg font-medium shadow-sm cursor-pointer">
+                <FileDown size={16} /> Baixar PDF A4
              </button>
              {!isReadOnly && (
                <>
-                 <button onClick={handleCopy} className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg font-medium">
+                 <button onClick={handleCopy} className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg font-medium cursor-pointer">
                     <Copy size={16} /> Copiar
                  </button>
-                 <button onClick={handleEdit} className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white hover:bg-purple-700 rounded-lg font-medium shadow-sm">
+                 <button onClick={handleEdit} className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white hover:bg-purple-700 rounded-lg font-medium shadow-sm cursor-pointer">
                     <Edit size={16} /> Editar
                  </button>
                </>
@@ -331,8 +511,8 @@ const MeetingSchedule: React.FC<MeetingScheduleProps> = ({ members, schedules, o
            </div>
         </div>
 
-        {/* DOCUMENTO OFICIAL */}
-        <div className="printable-content bg-white shadow-lg p-8 max-w-[210mm] mx-auto w-full text-black print:shadow-none print:p-0 print:w-full font-inter text-[11px] leading-tight">
+        {/* PREVIEW EM TELA (HTML/CSS) - Não usado para impressão, apenas visualização rápida */}
+        <div className="bg-white shadow-lg p-8 max-w-[210mm] mx-auto w-full text-black font-inter text-[11px] leading-tight mb-10 border border-gray-200">
            
            {/* Header */}
            <div className="border-b-2 border-black pb-1 mb-2 flex justify-between items-end uppercase font-bold tracking-tight">
@@ -367,7 +547,7 @@ const MeetingSchedule: React.FC<MeetingScheduleProps> = ({ members, schedules, o
 
            {/* TESOUROS */}
            <div className="mb-4">
-              <div className="bg-slate-700 text-white font-bold uppercase text-xs px-2 py-1.5 flex justify-between items-center rounded-sm print:bg-slate-700 print:text-white mb-1">
+              <div className="bg-slate-700 text-white font-bold uppercase text-xs px-2 py-1.5 flex justify-between items-center rounded-sm mb-1">
                  <span>TESOUROS DA PALAVRA DE DEUS</span>
                  <span className="font-normal normal-case text-[10px] opacity-90">Salão principal</span>
               </div>
@@ -392,7 +572,7 @@ const MeetingSchedule: React.FC<MeetingScheduleProps> = ({ members, schedules, o
 
            {/* MINISTÉRIO */}
            <div className="mb-4">
-              <div className="bg-[#b45309] text-white font-bold uppercase text-xs px-2 py-1.5 flex justify-between items-center rounded-sm print:bg-[#b45309] print:text-white mb-1">
+              <div className="bg-[#b45309] text-white font-bold uppercase text-xs px-2 py-1.5 flex justify-between items-center rounded-sm mb-1">
                  <span>FAÇA SEU MELHOR NO MINISTÉRIO</span>
                  <span className="font-normal normal-case text-[10px] opacity-90">Salão principal</span>
               </div>
@@ -427,7 +607,7 @@ const MeetingSchedule: React.FC<MeetingScheduleProps> = ({ members, schedules, o
 
            {/* VIDA CRISTÃ */}
            <div className="mb-0">
-              <div className="bg-[#991b1b] text-white font-bold uppercase text-xs px-2 py-1.5 flex justify-between items-center rounded-sm print:bg-[#991b1b] print:text-white mb-1">
+              <div className="bg-[#991b1b] text-white font-bold uppercase text-xs px-2 py-1.5 flex justify-between items-center rounded-sm mb-1">
                  <span>NOSSA VIDA CRISTÃ</span>
               </div>
 
@@ -493,7 +673,7 @@ const MeetingSchedule: React.FC<MeetingScheduleProps> = ({ members, schedules, o
            </div>
 
            <div className="mt-8 text-[9px] text-gray-400">
-              S-140-T 11/23
+              S-140-T 11/23 | Prévia em Tela (Use "Baixar PDF" para impressão)
            </div>
 
         </div>
@@ -640,7 +820,7 @@ const MeetingSchedule: React.FC<MeetingScheduleProps> = ({ members, schedules, o
             {!isReadOnly && (
                 <button 
                     onClick={() => handleAddPart('ministry')}
-                    className="w-full py-2 border-2 border-dashed border-yellow-200 text-yellow-700 hover:bg-yellow-50 rounded-lg font-bold text-sm flex items-center justify-center gap-2 transition-colors"
+                    className="w-full py-2 border-2 border-dashed border-yellow-200 text-yellow-700 hover:bg-yellow-50 rounded-lg font-bold text-sm flex items-center justify-center gap-2 transition-colors cursor-pointer"
                 >
                     <Plus size={16} /> Adicionar Parte
                 </button>
@@ -666,7 +846,7 @@ const MeetingSchedule: React.FC<MeetingScheduleProps> = ({ members, schedules, o
             {!isReadOnly && (
                 <button 
                     onClick={() => handleAddPart('living')}
-                    className="w-full py-2 border-2 border-dashed border-red-200 text-red-700 hover:bg-red-50 rounded-lg font-bold text-sm flex items-center justify-center gap-2 transition-colors"
+                    className="w-full py-2 border-2 border-dashed border-red-200 text-red-700 hover:bg-red-50 rounded-lg font-bold text-sm flex items-center justify-center gap-2 transition-colors cursor-pointer"
                 >
                     <Plus size={16} /> Adicionar Parte
                 </button>

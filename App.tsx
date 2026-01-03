@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import SideMenu from './components/SideMenu';
 import Dashboard from './components/Dashboard';
@@ -311,7 +310,7 @@ const App: React.FC = () => {
     return false;
   };
 
-  // Verifica permissão específica para Territórios e Carrinhos (Admin ou Coordenador/Sup. Serviço)
+  // Verifica permissão específica para Carrinhos (Admin ou Coordenador/Sup. Serviço)
   const canManageService = (): boolean => {
       if (currentRole === SystemRole.TOTAL) return true;
       if (currentUser && 'roles' in currentUser && currentUser.roles) {
@@ -505,6 +504,8 @@ const App: React.FC = () => {
                 return <ChairmanReaderRoster assignments={chairmanReaders} onSaveAssignments={()=>{}} isReadOnly={true} members={members} />;
             case 'field_service':
                 return <FieldServiceRoster meetings={fieldServiceSchedule} onSaveMeetings={()=>{}} isReadOnly={true} members={members} />;
+            case 'territories': // Publicadores podem ver territórios (Read Only)
+                return <Territories territories={territories} members={members} history={territoryHistory} onSaveTerritories={()=>{}} onSaveHistory={()=>{}} isReadOnly={true} />;
             case 'public_witnessing': // Publicador pode ver e se inscrever
                 return <PublicWitnessing locations={cartLocations} shifts={cartShifts} members={members} onSaveLocations={()=>{}} onSaveShifts={(s) => {setCartShifts(s); registerLog('update', 'Carrinhos', 'Inscrição/Cancelamento em turno')}} isReadOnly={true} currentUser={currentUser as Member} />;
             case 'duties':
@@ -577,14 +578,14 @@ const App: React.FC = () => {
             isReadOnly={!canEdit('groups')} 
         />;
       case 'territories':
-        if (!canManageService()) return <div className="p-8 text-center text-gray-500">Acesso restrito a Coordenadores e Superintendentes de Serviço.</div>;
+        // Lógica de visualização para Todos, Edição apenas para quem tem permissão
         return <Territories 
             territories={territories} 
             members={members} 
             history={territoryHistory} 
             onSaveTerritories={(t) => { setTerritories(t); registerLog('update', 'Territórios', 'Atualização de territórios'); }} 
             onSaveHistory={(h) => setTerritoryHistory(h)} 
-            isReadOnly={false} 
+            isReadOnly={!canEdit('territories')} 
         />;
       case 'public_witnessing':
         return <PublicWitnessing 

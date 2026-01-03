@@ -69,6 +69,7 @@ export const ADMIN_ROLES = [
   'Coordenador',
   'Secretário',
   'Sup. Serviço',
+  'Servo de Territórios',
   'Sup. NVM',
   'Servo de Contas',
   'Sup. A/V',
@@ -144,13 +145,19 @@ export interface InboxMessage {
   targetOverseerName?: string; // Nome do dirigente alvo (para filtro)
   content: string;
   read: boolean;
-  type: 'report' | 'system';
+  type: 'report' | 'system' | 'assignment'; // assignment type adicionado
   reportData?: {
     month: string;
     hours: number;
     studies: number;
     participated: boolean;
-  }
+  };
+  assignmentData?: {
+      territoryNumber: string;
+      territoryId: string;
+      territoryName?: string;
+      territoryImage?: string; // URL da imagem do mapa
+  };
 }
 
 export interface MeetingPart {
@@ -249,6 +256,19 @@ export interface PublicTalkOutline {
 }
 
 // --- TERRITÓRIOS ---
+export interface GeoPoint {
+    lat: number;
+    lng: number;
+    timestamp: number;
+}
+
+export interface TrackingSession {
+    id: string;
+    date: string;
+    publisherName: string;
+    path: GeoPoint[];
+}
+
 export interface Territory {
   id: string;
   number: string;
@@ -260,9 +280,10 @@ export interface Territory {
   assignedDate?: string;
   lastWorkedDate?: string;
   notes?: string;
-  // Geo-Analytics (Inovação 2)
+  // Geo-Analytics (Inovação 2 & 5)
   latitude?: number;
   longitude?: number;
+  trackingSessions?: TrackingSession[]; // Histórico de rastreamento
 }
 
 export interface TerritoryHistory {

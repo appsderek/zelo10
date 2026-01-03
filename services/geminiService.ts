@@ -1,3 +1,4 @@
+
 import { GoogleGenAI } from "@google/genai";
 import { Member, AttendanceRecord, MemberStatus } from "../types";
 
@@ -61,15 +62,49 @@ export const generateCongregationReport = async (
  * Agente de IA para o "Banco de Ideias" dos Anciãos.
  * Restrito estritamente a conteúdo teocrático (JW.org).
  */
-export const askIdeaBank = async (topic: string): Promise<string> => {
+export type IdeaMode = 'general' | 'audience' | 'conclusion' | 'ministry' | 'rare';
+
+export const askIdeaBank = async (topic: string, mode: IdeaMode = 'general', context?: string): Promise<string> => {
     if (!apiKey) {
         return "Chave de API (Gemini) não configurada. Por favor, configure a API_KEY.";
     }
 
     try {
+        let specificInstruction = "";
+        let userPrompt = "";
+
+        switch (mode) {
+            case 'audience':
+                const target = context || "Crianças";
+                specificInstruction = `ADAPTAÇÃO DE PÚBLICO: O usuário precisa explicar este tema especificamente para: ${target}. Use linguagem apropriada, analogias simples que esse grupo entenda e foque na aplicação prática para a realidade deles.`;
+                userPrompt = `Explique e crie ilustrações sobre o tema "${topic}" adaptadas para: ${target}.`;
+                break;
+            
+            case 'conclusion':
+                specificInstruction = `ESTRUTURA DE CONCLUSÃO: O objetivo é fornecer uma conclusão impactante. Sugira 3 formas diferentes de concluir o discurso: 1) Com uma pergunta reflexiva, 2) Com um resumo motivador, 3) Com uma chamada à ação (aplicação prática imediata).`;
+                userPrompt = `Sugira conclusões motivadoras para um discurso com o tema: "${topic}".`;
+                break;
+
+            case 'ministry':
+                specificInstruction = `APLICAÇÃO NO MINISTÉRIO: Transforme este tema em uma apresentação para o serviço de campo. Crie: 1) Uma introdução simples (quebra-gelo), 2) Uma pergunta de ponto de vista, 3) Um texto bíblico de ligação, 4) Uma transição para oferecer uma publicação ou vídeo.`;
+                userPrompt = `Como usar o tema "${topic}" no ministério de campo? Crie uma apresentação.`;
+                break;
+
+            case 'rare':
+                specificInstruction = `EXEMPLOS INÉDITOS (FUGIR DO ÓBVIO): O usuário quer evitar os exemplos bíblicos mais comuns (ex: se for Fé, NÃO use Abraão; se for Coragem, NÃO use Davi). Busque personagens bíblicos menos citados, relatos secundários ou detalhes específicos de profecias que ilustrem o ponto de forma fresca e profunda.`;
+                userPrompt = `Forneça exemplos bíblicos pouco conhecidos ou "lados B" sobre o tema: "${topic}".`;
+                break;
+
+            case 'general':
+            default:
+                specificInstruction = `FORMATO PADRÃO: Apresente 3 opções de ilustrações: 1) Cotidiano, 2) Bíblica, 3) Criação (Natureza).`;
+                userPrompt = `Por favor, forneça ilustrações e analogias para um discurso público sobre o tema: "${topic}".`;
+                break;
+        }
+
         const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash',
-            contents: `Por favor, forneça ilustrações e analogias para um discurso público sobre o tema: "${topic}".`,
+            contents: userPrompt,
             config: {
                 systemInstruction: `
                     Você é um assistente de pesquisa teocrático experiente, projetado para ajudar anciãos das Testemunhas de Jeová na preparação de discursos.
@@ -79,25 +114,15 @@ export const askIdeaBank = async (topic: string): Promise<string> => {
                     2. NÃO utilize fontes seculares, filosofias humanas, política ou materiais de outras religiões.
                     3. Mantenha um tom respeitoso, digno, encorajador e modesto.
                     
-                    FORMATO DA RESPOSTA:
-                    Apresente 3 opções de ilustrações distintas para o tema solicitado:
-                    
-                    # Opção 1: Ilustração do Cotidiano
-                    (Uma analogia simples e prática da vida moderna que explica o ponto espiritual)
-                    
-                    # Opção 2: Ilustração Bíblica
-                    (Um relato ou personagem bíblico que serve como exemplo ou aviso sobre o tema)
-                    
-                    # Opção 3: Ilustração da Criação (Natureza)
-                    (Algo na natureza que ensina uma lição sobre as qualidades de Jeová ou princípios de vida, similar ao estilo "Teve um Projeto?")
+                    MODO ATUAL: ${specificInstruction}
                     
                     Se o tema for inapropriado ou não tiver base teocrática, informe educadamente que não pode auxiliar com esse assunto específico.
                 `,
-                temperature: 0.7 // Criativo, mas focado
+                temperature: 0.7 
             }
         });
 
-        return response.text || "Não foi possível gerar as ilustrações no momento.";
+        return response.text || "Não foi possível gerar as ideias no momento.";
     } catch (error) {
         console.error("Erro ao consultar Banco de Ideias:", error);
         return "Ocorreu um erro ao conectar com o Banco de Ideias. Verifique sua conexão.";
