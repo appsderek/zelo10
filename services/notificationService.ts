@@ -56,6 +56,51 @@ export const openWhatsAppNotification = (
   window.open(url, '_blank');
 };
 
+/**
+ * Solicita permissão para notificações
+ */
+export const requestNotificationPermission = () => {
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+};
+
+/**
+ * Dispara uma notificação nativa do navegador
+ */
+export const sendBrowserNotification = (title: string, body: string) => {
+  if (!('Notification' in window)) {
+    console.log('Este navegador não suporta notificações de desktop');
+    return;
+  }
+
+  if (Notification.permission === 'granted') {
+    try {
+      // Tenta usar o ServiceWorker se disponível (melhor para mobile), senão usa a API direta
+      if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+         navigator.serviceWorker.ready.then((registration) => {
+            registration.showNotification(title, {
+              body,
+              icon: '/icon.svg',
+              badge: '/icon.svg',
+              vibrate: [200, 100, 200],
+              tag: 'zelo-notification'
+            } as any);
+         });
+      } else {
+         new Notification(title, {
+            body,
+            icon: '/icon.svg',
+            badge: '/icon.svg',
+            vibrate: [200, 100, 200]
+         } as any);
+      }
+    } catch (e) {
+      console.error("Erro ao enviar notificação", e);
+    }
+  }
+};
+
 export interface NotificationItem {
   id: string;
   member: Member;

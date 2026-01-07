@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import SideMenu from './components/SideMenu';
 import Dashboard from './components/Dashboard';
@@ -25,7 +24,8 @@ import SystemLog from './components/SystemLog'; // Novo componente
 
 import { Member, AttendanceRecord, Group, ServiceReport, WeekSchedule, DutyAssignment, CleaningAssignment, ChairmanReaderAssignment, FieldServiceMeeting, PublicTalk, SystemRole, AppSettings, ModuleKey, PublicTalkOutline, InboxMessage, Territory, TerritoryHistory, CartLocation, CartShift, LogEntry } from './types';
 import { Menu, Loader2, CloudOff, Cloud, ShieldCheck } from 'lucide-react';
-import { initSupabase, loadFromCloud, saveToCloud, PROJECT_URL, PROJECT_KEY } from './services/supabaseService';
+import { initSupabase, loadFromCloud, saveToCloud, subscribeToDataChanges, PROJECT_URL, PROJECT_KEY } from './services/supabaseService';
+import { sendBrowserNotification, requestNotificationPermission } from './services/notificationService';
 
 // Tempo de inatividade para logout automático (15 minutos em milissegundos)
 const IDLE_TIMEOUT_MS = 15 * 60 * 1000; 
@@ -76,14 +76,176 @@ const App: React.FC = () => {
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Refs para comparação no Realtime (para saber se algo mudou em relação ao estado atual)
+  const schedulesRef = useRef(schedules);
+  const dutiesRef = useRef(duties);
+  const cleaningRef = useRef(cleaningSchedule);
+  const chairmanRef = useRef(chairmanReaders);
+  const territoriesRef = useRef(territories);
+
+  // Manter refs atualizados
+  useEffect(() => { schedulesRef.current = schedules; }, [schedules]);
+  useEffect(() => { dutiesRef.current = duties; }, [duties]);
+  useEffect(() => { cleaningRef.current = cleaningSchedule; }, [cleaningSchedule]);
+  useEffect(() => { chairmanRef.current = chairmanReaders; }, [chairmanReaders]);
+  useEffect(() => { territoriesRef.current = territories; }, [territories]);
+
   // --- NOTIFICATION REQUEST ---
   useEffect(() => {
-    if (isAuthenticated && 'Notification' in window) {
-      if (Notification.permission === 'default') {
-        Notification.requestPermission();
-      }
+    if (isAuthenticated) {
+      requestNotificationPermission();
     }
   }, [isAuthenticated]);
+
+  // --- REALTIME LISTENER ---
+  useEffect(() => {
+    if (!isAuthenticated || cloudStatus !== 'connected') return;
+
+    // Função para verificar novas designações com base no item recebido
+    const checkForNewAssignments = (
+        newItem: any, 
+        oldItems: any[], 
+        type: 'schedules' | 'duties' | 'chairman' | 'territories',
+        userFullName: string,
+        userId: string
+    ) => {
+        if (!userFullName) return;
+
+        // Verifica se é uma inserção (item que não existia antes pelo ID)
+        const isInsert = !oldItems.some((old: any) => old.id === newItem.id);
+        
+        let hasNewAssignment = false;
+        let description = '';
+
+        if (type === 'schedules') {
+            const s = newItem as WeekSchedule;
+            // Verifica se o usuário está na escala
+            const inNew = 
+                s.chairman === userFullName || 
+                s.auxClassCounselor === userFullName ||
+                s.openingPrayer === userFullName ||
+                s.closingPrayer === userFullName ||
+                s.treasuresParts.some(p => p.assignedTo === userFullName || p.assignedToB === userFullName) ||
+                s.ministryParts.some(p => p.assignedTo === userFullName || p.assistant === userFullName || p.assignedToB === userFullName || p.assistantB === userFullName) ||
+                s.livingParts.some(p => p.assignedTo === userFullName);
+            
+            if (inNew) {
+                // Se for novo item ou se mudou algo
+                const oldS = oldItems.find((o: any) => o.id === s.id) as WeekSchedule;
+                const inOld = oldS && (
+                    JSON.stringify(oldS).includes(userFullName)
+                );
+                
+                if (isInsert || !inOld) {
+                    hasNewAssignment = true;
+                    description = `Vida e Ministério: ${new Date(s.date).toLocaleDateString('pt-BR')}`;
+                }
+            }
+        }
+
+        if (type === 'chairman') {
+            const c = newItem as ChairmanReaderAssignment;
+            if (c.chairman === userFullName || c.reader === userFullName) {
+                const oldC = oldItems.find((o: any) => o.id === c.id) as ChairmanReaderAssignment;
+                if (isInsert || (oldC && oldC.chairman !== userFullName && oldC.reader !== userFullName)) {
+                    hasNewAssignment = true;
+                    description = `Presidente/Leitor: ${new Date(c.date).toLocaleDateString('pt-BR')}`;
+                }
+            }
+        }
+
+        if (type === 'duties') {
+            const d = newItem as DutyAssignment;
+            if (d.attendants.includes(userFullName) || d.microphones.includes(userFullName) || d.soundVideo.includes(userFullName)) {
+                const oldD = oldItems.find((o: any) => o.id === d.id) as DutyAssignment;
+                if (isInsert || (oldD && !JSON.stringify(oldD).includes(userFullName))) {
+                    hasNewAssignment = true;
+                    description = `Apoio: ${new Date(d.date).toLocaleDateString('pt-BR')}`;
+                }
+            }
+        }
+
+        if (type === 'territories') {
+            const t = newItem as Territory;
+            if (t.currentAssigneeId === userId) {
+                const oldT = oldItems.find((o: any) => o.id === t.id) as Territory;
+                if (!oldT || oldT.currentAssigneeId !== userId) {
+                    hasNewAssignment = true;
+                    description = `Território #${t.number} designado a você.`;
+                }
+            }
+        }
+
+        if (hasNewAssignment) {
+            sendBrowserNotification("Z-Elo: Nova Designação", description);
+        }
+    };
+
+    const unsubscribe = subscribeToDataChanges((payload) => {
+        const key = payload.new.key;
+        const newData = payload.new.value;
+        const currentUserFullName = currentUser && 'fullName' in currentUser ? currentUser.fullName : '';
+        const currentUserId = currentUser && 'id' in currentUser ? (currentUser as Member).id : '';
+
+        // Atualiza o estado e verifica designações
+        switch (key) {
+            case 'schedules':
+                if (Array.isArray(newData)) {
+                    newData.forEach(s => checkForNewAssignments(s, schedulesRef.current, 'schedules', currentUserFullName, currentUserId));
+                    setSchedules(newData);
+                }
+                break;
+            case 'duties':
+                if (Array.isArray(newData)) {
+                    newData.forEach(d => checkForNewAssignments(d, dutiesRef.current, 'duties', currentUserFullName, currentUserId));
+                    setDuties(newData);
+                }
+                break;
+            case 'chairman_readers':
+                if (Array.isArray(newData)) {
+                    newData.forEach(c => checkForNewAssignments(c, chairmanRef.current, 'chairman', currentUserFullName, currentUserId));
+                    setChairmanReaders(newData);
+                }
+                break;
+            case 'cleaning':
+                setCleaningSchedule(newData);
+                break;
+            case 'territories':
+                if (Array.isArray(newData)) {
+                    newData.forEach(t => checkForNewAssignments(t, territoriesRef.current, 'territories', currentUserFullName, currentUserId));
+                    setTerritories(newData);
+                }
+                break;
+            case 'inbox_messages':
+                setInboxMessages(newData);
+                // Notificar secretário se houver nova mensagem
+                if (currentRole === SystemRole.TOTAL || (currentUser && 'roles' in currentUser && currentUser.roles?.includes('Secretário'))) {
+                    const prevCount = inboxMessages.length; 
+                    if (newData.length > prevCount) {
+                        sendBrowserNotification("Z-Elo", "Nova mensagem ou relatório na Caixa de Entrada.");
+                    }
+                }
+                break;
+            // Outros módulos
+            case 'members': setMembers(newData); break;
+            case 'groups': setGroups(newData); break;
+            case 'reports': setServiceReports(newData); break;
+            case 'attendance': setAttendance(newData); break;
+            case 'cleaning_notes': setCleaningNotes(newData); break;
+            case 'field_service': setFieldServiceSchedule(newData); break;
+            case 'public_talks': setPublicTalks(newData); break;
+            case 'public_talk_outlines': setPublicTalkOutlines(newData); break;
+            case 'settings': setSettings(newData); break;
+            case 'cart_locations': setCartLocations(newData); break;
+            case 'cart_shifts': setCartShifts(newData); break;
+            case 'system_logs': setSystemLogs(newData); break;
+        }
+    });
+
+    return () => {
+        unsubscribe();
+    };
+  }, [isAuthenticated, cloudStatus, currentUser, currentRole]);
 
   // --- IDLE TIMER LOGIC ---
   const resetIdleTimer = () => {
@@ -534,6 +696,8 @@ const App: React.FC = () => {
                     reports={serviceReports} 
                     onSaveReport={handleSavePersonalReport}
                     groups={groups}
+                    inboxMessages={inboxMessages}
+                    onMarkMessageRead={handleMarkMessageRead}
                 />
             );
         }

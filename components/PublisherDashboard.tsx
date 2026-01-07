@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
-import { Member, WeekSchedule, DutyAssignment, ChairmanReaderAssignment, ServiceReport, PioneerStatus, Group } from '../types';
-import { User, Calendar, CheckCircle2, XCircle, Clock, BookOpenCheck, CalendarCheck, ShieldCheck, Send, AlertTriangle, Download, Trash2, Eye, CalendarPlus, Map, ExternalLink } from 'lucide-react';
+import { Member, WeekSchedule, DutyAssignment, ChairmanReaderAssignment, ServiceReport, PioneerStatus, Group, InboxMessage, SystemRole } from '../types';
+import { User, Calendar, CheckCircle2, XCircle, Clock, BookOpenCheck, CalendarCheck, ShieldCheck, Send, AlertTriangle, Download, Trash2, Eye, CalendarPlus, Map, ExternalLink, MessageSquare, Check } from 'lucide-react';
 import { loadFromCloud } from '../services/supabaseService';
 
 interface PublisherDashboardProps {
@@ -12,9 +12,11 @@ interface PublisherDashboardProps {
   reports: ServiceReport[];
   onSaveReport: (report: ServiceReport) => void;
   groups: Group[];
+  inboxMessages?: InboxMessage[]; // Novo: Recebe mensagens
+  onMarkMessageRead?: (id: string) => void; // Novo: Função para marcar
 }
 
-const PublisherDashboard: React.FC<PublisherDashboardProps> = ({ member, schedules, duties, chairmanReaders, reports, onSaveReport, groups }) => {
+const PublisherDashboard: React.FC<PublisherDashboardProps> = ({ member, schedules, duties, chairmanReaders, reports, onSaveReport, groups, inboxMessages = [], onMarkMessageRead }) => {
   const today = new Date();
   
   // Calcula o mês passado (que é o mês do relatório)
@@ -54,6 +56,23 @@ const PublisherDashboard: React.FC<PublisherDashboardProps> = ({ member, schedul
       };
       fetchMyTerritories();
   }, [member.id]);
+
+  // --- LÓGICA DE NOTIFICAÇÃO PARA SECRETÁRIO/COORDENADOR ---
+  // Verifica se o usuário tem cargo de autoridade para ver relatórios recebidos
+  const isAuthority = member.roles?.some(r => ['Secretário', 'Coordenador', 'Sup. Serviço'].includes(r)) || member.customRole === SystemRole.TOTAL;
+
+  // Filtra mensagens relevantes (Não lidas e direcionadas a ele ou 'Secretaria' se for secretário)
+  const myNewMessages = inboxMessages.filter(msg => {
+      if (msg.read) return false;
+      
+      // Se for autoridade, vê tudo ou filtro específico
+      if (isAuthority) {
+          // Vê tudo que não tem destinatário específico OU é para Secretaria OU é pro próprio nome
+          return !msg.targetOverseerName || msg.targetOverseerName === 'Secretaria' || msg.targetOverseerName === member.fullName;
+      }
+      return false;
+  }).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  // ---------------------------------------------------------
 
   // Filtrar Designações Futuras
   const todayStr = today.toISOString().slice(0, 10);
@@ -154,10 +173,6 @@ const PublisherDashboard: React.FC<PublisherDashboardProps> = ({ member, schedul
       const timeStr = (assign.startTime || '1930').replace(':', '') + '00';
       const startDateTime = `${dateStr}T${timeStr}`;
       
-      // Assume duração de 1 hora se não especificado
-      // Calculando endDateTime (simplificado, adiciona 1 hora ao display)
-      // Para o ICS simples, vamos apenas usar o Start e deixar o usuário ajustar o fim no app nativo se quiser, ou por padrão 1h.
-      
       const title = `Designação: ${assign.description}`;
       const details = `Você tem uma designação no Salão do Reino.\nTipo: ${assign.type}\nParte: ${assign.description}`;
       const location = "Salão do Reino";
@@ -194,6 +209,48 @@ END:VCALENDAR`;
          <h2 className="text-3xl font-bold text-white mb-2">Meu Painel</h2>
          <p className="text-purple-200">Bem-vindo, {member.fullName}.</p>
       </div>
+
+      {/* --- NOTIFICAÇÕES DE RELATÓRIOS (APENAS PARA AUTORIDADES) --- */}
+      {isAuthority && myNewMessages.length > 0 && (
+          <div className="bg-gradient-to-r from-blue-900 to-indigo-900 border border-blue-500/30 p-6 rounded-xl shadow-lg animate-fade-in relative overflow-hidden mb-4">
+              <div className="absolute top-0 right-0 p-4 opacity-10">
+                  <MessageSquare size={100} className="text-white" />
+              </div>
+              
+              <div className="flex justify-between items-center mb-4 relative z-10">
+                  <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                      <MessageSquare size={24} className="text-blue-300" />
+                      Relatórios Recebidos (Novos)
+                  </h3>
+                  <span className="bg-blue-500 text-white px-3 py-1 rounded-full text-xs font-bold">
+                      {myNewMessages.length} novos
+                  </span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 relative z-10">
+                  {myNewMessages.map(msg => (
+                      <div key={msg.id} className="bg-white/10 backdrop-blur-sm border border-white/10 rounded-lg p-3 hover:bg-white/20 transition-all">
+                          <div className="flex justify-between items-start mb-2">
+                              <span className="text-xs font-bold text-blue-200">{msg.fromMemberName}</span>
+                              <span className="text-[10px] text-white/50">{new Date(msg.date).toLocaleDateString('pt-BR')}</span>
+                          </div>
+                          <p className="text-sm text-white mb-2">{msg.content}</p>
+                          {msg.reportData && (
+                             <div className="flex gap-2 text-xs text-blue-200 mb-2 bg-black/20 p-1.5 rounded">
+                                 <span>Hs: {msg.reportData.hours}</span> • <span>Est: {msg.reportData.studies}</span>
+                             </div>
+                          )}
+                          <button 
+                             onClick={() => onMarkMessageRead && onMarkMessageRead(msg.id)}
+                             className="w-full py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded flex items-center justify-center gap-1 transition-colors"
+                          >
+                              <Check size={12} /> Marcar como Visto
+                          </button>
+                      </div>
+                  ))}
+              </div>
+          </div>
+      )}
 
       {/* MÓDULO DE RELATÓRIO DESTACADO */}
       <div className="bg-gradient-to-br from-indigo-600 to-purple-800 rounded-2xl shadow-xl overflow-hidden border border-white/20 relative">

@@ -74,3 +74,48 @@ export const loadFromCloud = async (key: string) => {
   
   return { data: originalData, error: null };
 };
+
+/**
+ * Inscreve-se para mudanças em tempo real na tabela jw_data.
+ * Retorna uma função para cancelar a inscrição.
+ */
+export const subscribeToDataChanges = (callback: (payload: any) => void) => {
+  if (!supabase) {
+    if (PROJECT_URL && PROJECT_KEY) {
+      initSupabase(PROJECT_URL, PROJECT_KEY);
+    }
+    if (!supabase) return () => {};
+  }
+
+  const channel = supabase.channel('jw_data_updates')
+    .on(
+      'postgres_changes',
+      {
+        event: 'UPDATE', // Escuta updates
+        schema: 'public',
+        table: 'jw_data',
+      },
+      (payload: any) => {
+        // Descriptografa o dado recebido no payload antes de passar para o callback
+        if (payload.new && payload.new.value) {
+            const decryptedValue = decryptData(payload.new.value);
+            // Cria um payload enriquecido com o valor descriptografado
+            const enrichedPayload = {
+                ...payload,
+                new: {
+                    ...payload.new,
+                    value: decryptedValue
+                }
+            };
+            callback(enrichedPayload);
+        } else {
+            callback(payload);
+        }
+      }
+    )
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(channel);
+  };
+};
